@@ -9,10 +9,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null), [generation, setGeneration] = useState(0), [ready, setReady] = useState(false);
   async function request(path: string, body?: unknown) {
     const token = await readAccountToken();
-    const response = await fetch(baseURL + path, { method: body ? 'POST' : 'GET', credentials: 'include', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    const response = await fetch(baseURL + path, { method: body ? 'POST' : 'GET', credentials: 'include', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) }).catch(() => { throw new Error('Não foi possível ligar ao servidor. Tente novamente.'); });
     const data = await response.json();
     if (!response.ok) {
-      if (response.status === 401) setUser(null);
+      if (response.status === 401) { setUser(null); await storeAccountToken(null); }
       throw new Error(response.status === 429 ? 'Demasiadas tentativas. Aguarde um minuto.' : path.includes('/api/auth/') ? 'Não foi possível entrar ou criar a conta. Verifique os dados; a palavra-passe deve ter pelo menos 12 caracteres.' : data.error ?? 'Não foi possível concluir o pedido.');
     }
     const nextToken = response.headers.get('set-auth-token');

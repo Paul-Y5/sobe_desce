@@ -32,7 +32,7 @@ test('persistent account API authenticates, denies forged roles, and audits admi
   expect(entry.ok).toBe(true);
   const intruder = io(url, { forceNew: true });
   await new Promise<void>(resolve => intruder.once('connect', resolve));
-  expect(await intruder.emitWithAck('resume', entry.data)).toMatchObject({ ok: false, code: 'INVALID_SESSION' });
+  expect(await intruder.emitWithAck('resume', entry.data)).toMatchObject({ ok: false, code: 'ACCOUNT_REQUIRED' });
   intruder.disconnect();
   const revoked = new Promise<void>(resolve => socket.once('accountRevoked', resolve));
   expect(await request(`/api/admin/users/${other.user.id}/ban`, { reason: 'Teste de moderação' }, token)).toHaveProperty('status', 200);

@@ -7,6 +7,7 @@ import { useGame } from '../src/GameContext';
 import { Button, colors, PlayingCard, s, suitNames, suitSymbols } from '../src/ui';
 import { OnboardingPrompt } from '../src/OnboardingPrompt';
 import { MotionEntry, useReducedMotion } from '../src/motion';
+import { Chat } from '../src/Chat';
 import { TurnNotice } from '../src/TurnNotice';
 
 export default function Home() {
@@ -22,6 +23,7 @@ export default function Home() {
     {game.connection !== 'ready' && <View style={s.notice}><Text style={s.label} accessibilityLiveRegion="polite">{game.connection === 'connecting' ? 'A ligar ao servidor…' : game.connection === 'replaced' ? 'Sessão aberta noutra ligação' : game.connection === 'inactive' ? 'Desligado por inatividade · lugar reservado' : 'A restabelecer ligação… O seu lugar está reservado.'}</Text>{game.connection === 'replaced' && <Button title="Voltar ao início" onPress={game.reset} />}{game.connection === 'inactive' && <Button title="Voltar à partida" onPress={game.returnToGame} />}</View>}
     {!!game.error && <View style={s.notice}><Text accessibilityRole="alert" style={s.body}>{game.error}</Text><Button secondary title="Fechar aviso" onPress={game.dismissError} /></View>}
     {game.snapshot ? game.snapshot.phase === 'lobby' ? <Lobby state={game.snapshot} /> : <Table state={game.snapshot} /> : <Entry />}
+    {game.snapshot && <Chat />}
     <Text style={[s.body, { fontSize: 12, textAlign: 'center' }]}>Quatro pessoas. Quarenta cartas. Um lugar à mesa.</Text>
   </ScrollView></SafeAreaView>;
 }
@@ -62,11 +64,13 @@ function Lobby({ state }: { state: Snapshot }) {
       <Text style={s.eyebrow}>A SUA MESA ESTÁ ABERTA</Text><Text style={s.heading}>Só falta a companhia.</Text>
       <Text style={s.body}>Partilhe este código com os seus amigos.</Text><Text selectable testID="room-code" style={styles.roomCode}>{state.roomCode}</Text>
       <Text style={s.body}>{count} de 4 lugares ocupados</Text>
+      {state.players.some(p => p?.bot) && <Text style={s.label}>Mesa de treino · inclui bots</Text>}
     </View>
     <View style={styles.lobbySeats}>{state.players.map((p, i) => <View key={i} style={[s.panel, { flex: 1, minWidth: 135 }]}>
       <Text style={s.eyebrow}>LUGAR {i + 1}{i === state.creator ? ' · ANFITRIÃO' : ''}</Text>
       <Text style={s.label}>{p ? `${p.nickname}${i === state.you ? ' (eu)' : ''}` : 'À espera de um amigo'}</Text>
-      <Text style={s.body}>{p ? p.connected ? '● Pronto para jogar' : '○ Sem ligação · reservado' : '○ Livre'}</Text>
+      <Text style={s.body}>{p ? p.bot ? '◇ Bot · treino' : p.connected ? '● Pronto para jogar' : '○ Sem ligação · reservado' : '○ Livre'}</Text>
+      {state.you === state.creator && (!p || p.bot) && <Button secondary title={p?.bot ? `Retirar bot do lugar ${i + 1}` : `Adicionar bot ao lugar ${i + 1}`} disabled={busy || connection !== 'ready'} onPress={() => void act({ type: p?.bot ? 'removeBot' : 'addBot', seat: i })} />}
     </View>)}</View>
     {state.you === state.creator ? <Button title="Começar partida" disabled={!ready || busy || connection !== 'ready'} onPress={() => void act({ type: 'start' })} /> : <Text style={[s.body, { textAlign: 'center' }]}>A aguardar que o anfitrião comece a partida.</Text>}
     <Text style={[s.body, { textAlign: 'center' }]}>Cada pessoa começa com 20 pontos. Ganha quem chegar a zero.</Text>
@@ -75,7 +79,7 @@ function Lobby({ state }: { state: Snapshot }) {
 }
 function Seat({ player, active, you, dealer }: { player: PublicPlayer; active: boolean; you: boolean; dealer: boolean }) {
   return <View style={[styles.seat, active && styles.activeSeat]}>
-    <View style={s.row}><View style={styles.avatar}><Text style={{ color: colors.dark, fontWeight: '800' }}>{player.nickname.slice(0, 1).toUpperCase()}</Text></View><Text numberOfLines={2} style={[styles.seatName, { flex: 1 }]}>{player.nickname}{you ? ' (eu)' : ''}</Text><Text style={styles.score}>{player.score}</Text></View>
+    <View style={s.row}><View style={styles.avatar}><Text style={{ color: colors.dark, fontWeight: '800' }}>{player.nickname.slice(0, 1).toUpperCase()}</Text></View><Text numberOfLines={2} style={[styles.seatName, { flex: 1 }]}>{player.nickname}{player.bot ? ' · Bot' : ''}{you ? ' (eu)' : ''}</Text><Text style={styles.score}>{player.score}</Text></View>
     <Text style={styles.seatDetail}>{player.inactive ? '○ Inatividade · reservado' : !player.connected ? '○ Sem ligação' : active ? '● A jogar' : player.participating === false ? 'Ficou de fora' : `${player.tricks} ${player.tricks === 1 ? 'vaza' : 'vazas'} · ${player.cardCount} cartas`}{dealer ? ' · Dá cartas' : ''}</Text>
   </View>;
 }

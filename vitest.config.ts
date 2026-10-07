@@ -6,7 +6,7 @@ export default defineConfig({
     testTimeout: 15000,
     coverage: {
       provider: 'v8',
-      include: ['shared/engine.ts', 'server/rooms.ts'],
+      include: ['shared/engine.ts', 'server/rooms.ts', 'server/accounts.ts', 'server/metrics.ts', 'server/bot.ts'],
       thresholds: { statements: 80, branches: 80, functions: 80, lines: 80 },
     },
   },

@@ -2,6 +2,8 @@ import { createServer as createHttpServer } from 'node:http';
 import { randomBytes, randomInt } from 'node:crypto';
 import { Server, type Socket } from 'socket.io';
 import { z } from 'zod';
+import { chooseBotAction } from './bot.js';
+import type { ChatMessage, Command } from '../shared/contracts.js';
 import type { Metrics } from './metrics.js';
 import type { Accounts } from './accounts.js';
 import { applyAction, createDeck, createGame, GameError, legalCards } from '../shared/engine.js';
@@ -15,6 +17,8 @@ const commandSchema = z.strictObject({
   requestId: z.string().min(8).max(100), expectedRevision: z.number().int().nonnegative(),
   action: z.discriminatedUnion('type', [
     z.strictObject({ type: z.literal('start') }),
+    z.strictObject({ type: z.literal('addBot'), seat: z.number().int().min(0).max(3) }),
+    z.strictObject({ type: z.literal('removeBot'), seat: z.number().int().min(0).max(3) }),
     z.strictObject({ type: z.literal('chooseTrump'), suit: z.enum(SUITS) }),
     z.strictObject({ type: z.literal('exchange'), cardIds: z.array(z.string().max(32)).max(5) }),
     z.strictObject({ type: z.literal('sitOut') }),
@@ -23,7 +27,11 @@ const commandSchema = z.strictObject({
     z.strictObject({ type: z.literal('restart'), confirmed: z.literal(true) }),
   ]),
 });
+const chatSchema = z.strictObject({ requestId: z.string().min(8).max(100), text: z.string().trim().min(1).max(500).refine(s => !/[\u0000-\u0008\u000b-\u001f\u007f]/u.test(s)) });
+const moderationSchema = z.strictObject({ requestId: z.string().min(8).max(100), seat: z.number().int().min(0).max(3), muted: z.boolean() });
 const messages: Record<string, string> = {
+  ACCOUNT_REQUIRED: 'Entre na conta que reservou este lugar para regressar à partida.',
+  CHAT_MUTED: 'O anfitrião silenciou as suas mensagens nesta sala.',
   INVALID_PAYLOAD: 'O pedido não é válido.', INVALID_ACTION: 'Esta ação não é válida.',
   NOT_MEMBER: 'Entre numa sala para jogar.', INVALID_SESSION: 'A sessão terminou. Entre novamente numa sala.',
   ROOM_NOT_FOUND: 'Não encontrámos essa sala. Confirme o código.', ROOM_FULL: 'Esta sala já tem quatro jogadores.',
@@ -37,11 +45,11 @@ const messages: Record<string, string> = {
   INTERNAL: 'Não foi possível concluir o pedido. Tente novamente.',
   INACTIVE_SESSION: 'Foi desligado por inatividade. Carregue em «Voltar à partida» para regressar.',
 };
-type Member = { nickname: string; token: string; socketId: string | null; requests: Set<string>; inactive: boolean; userId?: string };
-type Room = { code: string; creator: number; revision: number; members: (Member | null)[]; game: GameState | null; lastActivity: number; turnDeadline: number | null; warned: boolean; cancelTimer?: () => void };
+type Member = { nickname: string; token: string; socketId: string | null; requests: Set<string>; inactive: boolean; userId?: string; bot: boolean; chatRequests: Set<string>; chatTimes: number[] };
+type Room = { code: string; creator: number; revision: number; members: (Member | null)[]; game: GameState | null; lastActivity: number; turnDeadline: number | null; warned: boolean; cancelTimer?: () => void; cancelBot?: () => void; chatMessages: ChatMessage[]; mutedSeats: Set<number>; chatSequence: number };
 type Data = { session?: Session; seat?: number; userId?: string };
 type GameSocket = Socket<ClientEvents, ServerEvents, Record<string, never>, Data>;
-type Options = { metrics?: Metrics; accounts?: Accounts; origins?: string[]; rateLimit?: number; maxRooms?: number; roomTtlMs?: number; now?: () => number; schedule?: (run: () => void, delay: number) => () => void };
+type Options = { botDelayMs?: number; metrics?: Metrics; accounts?: Accounts; origins?: string[]; rateLimit?: number; maxRooms?: number; roomTtlMs?: number; now?: () => number; schedule?: (run: () => void, delay: number) => () => void };
 const TURN_DURATION_MS = 5 * 60 * 1000;
 const GRACE_DURATION_MS = 60 * 1000;
 
@@ -103,7 +111,7 @@ export function createServer(options: Options = {}) {
       phase: g?.phase ?? 'lobby', dealer: g?.dealer ?? 0, chooser: g?.chooser ?? 1,
       turn: g?.turn ?? null, handNumber: g?.handNumber ?? 0, trump: g?.trump ?? null,
       players: room.members.map((m, i) => m ? {
-        seat: i, nickname: m.nickname, connected: m.socketId !== null, inactive: m.inactive,
+        seat: i, nickname: m.nickname, connected: m.bot || m.socketId !== null, inactive: m.inactive, bot: m.bot,
         score: g?.players[i].score ?? TRADITIONAL_RULES.initialScore,
         tricks: g?.players[i].tricks ?? 0, participating: g?.players[i].participating ?? null,
         cardCount: g?.players[i].hand.length ?? 0,
@@ -114,10 +122,34 @@ export function createServer(options: Options = {}) {
       trick: g?.trick ?? [], completedTricks: g?.completedTricks ?? [], winners: g?.winners ?? [], scoreChanges: g?.scoreChanges ?? [],
     };
   }
+  function publishChat(room: Room) {
+    for (const member of room.members) if (member?.socketId) io.to(member.socketId).emit('chatState', { messages: room.chatMessages, mutedSeats: [...room.mutedSeats] });
+  }
+  function scheduleBot(room: Room) {
+    room.cancelBot?.(); room.cancelBot = undefined;
+    const seat = room.game?.turn;
+    if (seat == null || !room.members[seat]?.bot || !room.members.some(m => m?.socketId)) return;
+    const revision = room.revision;
+    room.cancelBot = schedule(() => {
+      room.cancelBot = undefined;
+      if (room.revision !== revision || !room.members[seat]?.bot || room.game?.turn !== seat) return;
+      const action = chooseBotAction(snapshot(room, seat));
+      if (action) {
+        try {
+          execute(room, seat, commandSchema.parse({ requestId: `bot-action-${revision}-${seat}`, expectedRevision: revision, action }));
+          options.metrics?.event('bot_action');
+        } catch {
+          options.metrics?.command('command', 'INTERNAL', 0);
+          console.error(JSON.stringify({ event: 'bot_action_failed' }));
+        }
+      }
+    }, options.botDelayMs ?? 700);
+  }
   function publish(room: Room) {
     room.members.forEach((member, seat) => {
       if (member?.socketId) io.to(member.socketId).emit('snapshot', snapshot(room, seat));
     });
+    scheduleBot(room);
   }
   function membership(socket: GameSocket) {
     const room = rooms.get(socket.data.session?.roomCode ?? '');
@@ -148,7 +180,7 @@ export function createServer(options: Options = {}) {
     room.cancelTimer = schedule(() => checkInactivity(room), Math.max(0, next - now()));
   }
   function beginTurnTimer(room: Room) {
-    room.turnDeadline = room.game?.turn != null ? now() + TURN_DURATION_MS : null;
+    room.turnDeadline = room.game?.turn != null && !room.members[room.game.turn]?.bot ? now() + TURN_DURATION_MS : null;
     room.warned = false;
     checkInactivity(room);
   }
@@ -160,6 +192,47 @@ export function createServer(options: Options = {}) {
     socket.data.seat = seat;
     // Assign first, so the old socket's disconnect handler cannot mark this seat offline.
     if (old && old.id !== socket.id) { old.emit('replaced'); old.disconnect(true); }
+    room.revision++; room.lastActivity = now(); publish(room);
+    socket.emit('chatState', { messages: room.chatMessages, mutedSeats: [...room.mutedSeats] });
+  }
+  function execute(room: Room, seat: number, command: Command) {
+    const member = room.members[seat]!;
+    // Enforce the same deadline even when an event arrives before a delayed timer callback.
+    checkInactivity(room);
+    if (member.inactive) throw new GameError('INACTIVE_SESSION');
+    if (member.requests.has(command.requestId)) throw new GameError('DUPLICATE');
+    if (command.expectedRevision !== room.revision) throw new GameError('STALE');
+    if (member.requests.size >= 10000) throw new GameError('REQUEST_LIMIT');
+    const action = command.action;
+    const previousPhase = room.game?.phase;
+    if (['start', 'nextHand', 'restart', 'addBot', 'removeBot'].includes(action.type) && seat !== room.creator) throw new GameError('CREATOR_ONLY');
+    // No await inside this handler: validation + pure transition + commit is atomic per room
+    // on this single Node event loop. Never add asynchronous work inside this boundary.
+    if (action.type === 'addBot' || action.type === 'removeBot') {
+      if (room.game) throw new GameError('WRONG_PHASE');
+      if (action.type === 'addBot') {
+        if (room.members[action.seat]) throw new GameError('INVALID_ACTION');
+        room.members[action.seat] = { nickname: `Bot ${action.seat + 1}`, token: randomBytes(32).toString('hex'), socketId: null, requests: new Set(), inactive: false, bot: true, chatRequests: new Set(), chatTimes: [] };
+      } else {
+        if (!room.members[action.seat]?.bot) throw new GameError('INVALID_ACTION');
+        room.members[action.seat] = null;
+      }
+    } else if (action.type === 'restart') {
+      room.game = null; options.metrics?.event('restart');
+      room.chatMessages = []; room.mutedSeats.clear(); publishChat(room);
+      room.members = room.members.map(m => m?.socketId || m?.bot ? m : null);
+    } else {
+      if (action.type === 'start' && !room.members.every(m => m && (m.bot || m.socketId))) throw new GameError('NEED_FOUR');
+      room.game = applyAction(room.game ?? createGame(), seat, action,
+        action.type === 'start' || action.type === 'nextHand' ? shuffledDeck() : undefined);
+    }
+    if (room.game?.phase !== previousPhase && ['handComplete', 'matchComplete'].includes(room.game?.phase ?? '')) {
+      options.metrics?.event('hand_complete');
+      if (room.game?.phase === 'matchComplete') options.metrics?.event('match_complete');
+    }
+    if (member.bot) member.requests.clear(); // Revision guards make older synthetic bot IDs unnecessary.
+    member.requests.add(command.requestId);
+    beginTurnTimer(room);
     room.revision++; room.lastActivity = now(); publish(room);
   }
   io.on('connection', socket => {
@@ -173,7 +246,7 @@ export function createServer(options: Options = {}) {
       } catch { socket.emit('accountRevoked'); socket.disconnect(true); }
     });
     let windowStart = Date.now(), count = 0;
-    function handle<T>(event: 'create' | 'join' | 'resume' | 'command', ack: unknown, operation: () => T) {
+    function handle<T>(event: 'create' | 'join' | 'resume' | 'command' | 'chat' | 'moderateChat', ack: unknown, operation: () => T) {
       if (typeof ack !== 'function') return;
       const started = performance.now();
       try {
@@ -202,7 +275,7 @@ export function createServer(options: Options = {}) {
         let code: string;
         const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         do { code = Array.from({ length: 6 }, () => alphabet[randomInt(alphabet.length)]).join(''); } while (rooms.has(code));
-        room = { code, creator: 0, revision: 0, members: [null, null, null, null], game: null, lastActivity: now(), turnDeadline: null, warned: false };
+        room = { code, creator: 0, revision: 0, members: [null, null, null, null], game: null, lastActivity: now(), turnDeadline: null, warned: false, chatMessages: [], mutedSeats: new Set(), chatSequence: 0 };
         rooms.set(code, room);
       } else {
         const found = rooms.get(entry.roomCode ?? '');
@@ -212,7 +285,7 @@ export function createServer(options: Options = {}) {
       }
       const seat = room.members.findIndex(m => !m);
       if (seat < 0) throw new GameError('ROOM_FULL');
-      room.members[seat] = { nickname: entry.nickname, token: randomBytes(32).toString('hex'), socketId: null, requests: new Set(), inactive: false, userId: socket.data.userId };
+      room.members[seat] = { nickname: entry.nickname, token: randomBytes(32).toString('hex'), socketId: null, requests: new Set(), inactive: false, userId: socket.data.userId, bot: false, chatRequests: new Set(), chatTimes: [] };
       bind(socket, room, seat);
       return socket.data.session!;
     }));
@@ -222,7 +295,7 @@ export function createServer(options: Options = {}) {
       const room = rooms.get(session.roomCode);
       const seat = room?.members.findIndex(m => m?.token === session.token) ?? -1;
       if (!room || seat < 0) throw new GameError('INVALID_SESSION');
-      if (room.members[seat]!.userId && room.members[seat]!.userId !== socket.data.userId) throw new GameError('INVALID_SESSION');
+      if (room.members[seat]!.userId && room.members[seat]!.userId !== socket.data.userId) throw new GameError('ACCOUNT_REQUIRED');
       checkInactivity(room);
       if (room.members[seat]!.inactive) {
         if (!session.returnFromInactivity) throw new GameError('INACTIVE_SESSION');
@@ -234,32 +307,31 @@ export function createServer(options: Options = {}) {
     socket.on('command', (raw, ack) => handle('command', ack, () => {
       const command = commandSchema.parse(raw);
       const { room, seat, member } = membership(socket);
-      // Enforce the same deadline even when an event arrives before a delayed timer callback.
-      checkInactivity(room);
+      execute(room, seat, command);
+    }));
+    socket.on('chat', (raw, ack) => handle('chat', ack, () => {
+      const message = chatSchema.parse(raw);
+      const { room, seat, member } = membership(socket);
       if (member.inactive) throw new GameError('INACTIVE_SESSION');
-      if (member.requests.has(command.requestId)) throw new GameError('DUPLICATE');
-      if (command.expectedRevision !== room.revision) throw new GameError('STALE');
-      if (member.requests.size >= 10000) throw new GameError('REQUEST_LIMIT');
-      const action = command.action;
-      const previousPhase = room.game?.phase;
-      if (['start', 'nextHand', 'restart'].includes(action.type) && seat !== room.creator) throw new GameError('CREATOR_ONLY');
-      // No await inside this handler: validation + pure transition + commit is atomic per room
-      // on this single Node event loop. Never add asynchronous work inside this boundary.
-      if (action.type === 'restart') {
-        room.game = null; options.metrics?.event('restart');
-        room.members = room.members.map(m => m?.socketId ? m : null);
-      } else {
-        if (action.type === 'start' && !room.members.every(m => m?.socketId)) throw new GameError('NEED_FOUR');
-        room.game = applyAction(room.game ?? createGame(), seat, action,
-          action.type === 'start' || action.type === 'nextHand' ? shuffledDeck() : undefined);
-      }
-      if (room.game?.phase !== previousPhase && ['handComplete', 'matchComplete'].includes(room.game?.phase ?? '')) {
-        options.metrics?.event('hand_complete');
-        if (room.game?.phase === 'matchComplete') options.metrics?.event('match_complete');
-      }
-      member.requests.add(command.requestId);
-      beginTurnTimer(room);
-      room.revision++; room.lastActivity = now(); publish(room);
+      if (member.chatRequests.has(message.requestId)) throw new GameError('DUPLICATE');
+      if (room.mutedSeats.has(seat)) throw new GameError('CHAT_MUTED');
+      if (member.chatRequests.size >= 1000) throw new GameError('REQUEST_LIMIT');
+      const recent = member.chatTimes.filter(time => now() - time < 10000);
+      if (recent.length >= 5) throw new GameError('RATE_LIMIT');
+      member.chatTimes = [...recent, now()]; member.chatRequests.add(message.requestId);
+      room.chatMessages.push({ id: ++room.chatSequence, seat, nickname: member.nickname, text: message.text, sentAt: now() });
+      room.chatMessages = room.chatMessages.slice(-50);
+      publishChat(room);
+    }));
+    socket.on('moderateChat', (raw, ack) => handle('moderateChat', ack, () => {
+      const command = moderationSchema.parse(raw);
+      const { room, seat, member } = membership(socket);
+      if (seat !== room.creator) throw new GameError('CREATOR_ONLY');
+      if (member.chatRequests.has(command.requestId)) throw new GameError('DUPLICATE');
+      if (member.chatRequests.size >= 1000) throw new GameError('REQUEST_LIMIT');
+      if (command.seat === seat || !room.members[command.seat] || room.members[command.seat]?.bot) throw new GameError('INVALID_ACTION');
+      if (command.muted) room.mutedSeats.add(command.seat); else room.mutedSeats.delete(command.seat);
+      member.chatRequests.add(command.requestId); publishChat(room);
     }));
     socket.on('disconnect', () => {
       options.metrics?.event('disconnect');
@@ -270,7 +342,7 @@ export function createServer(options: Options = {}) {
     });
   });
   const sweep = setInterval(() => {
-    for (const [code, room] of rooms) if (room.members.every(m => !m?.socketId) && now() - room.lastActivity > (options.roomTtlMs ?? 86400000)) { room.cancelTimer?.(); rooms.delete(code); }
+    for (const [code, room] of rooms) if (room.members.every(m => !m?.socketId) && now() - room.lastActivity > (options.roomTtlMs ?? 86400000)) { room.cancelTimer?.(); room.cancelBot?.(); rooms.delete(code); }
   }, 60000);
   sweep.unref();
   return {
@@ -278,6 +350,6 @@ export function createServer(options: Options = {}) {
       http.once('error', reject);
       http.listen(port, host, () => { const address = http.address(); resolve(`http://${host}:${typeof address === 'object' && address ? address.port : port}`); });
     }),
-    close: () => new Promise<void>(resolve => { clearInterval(sweep); for (const room of rooms.values()) room.cancelTimer?.(); io.close(() => resolve()); }),
+    close: () => new Promise<void>(resolve => { clearInterval(sweep); for (const room of rooms.values()) { room.cancelTimer?.(); room.cancelBot?.(); } io.close(() => resolve()); }),
   };
 }

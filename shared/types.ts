@@ -31,10 +31,10 @@ export type GameAction =
   | { type: 'sitOut' }
   | { type: 'play'; cardId: string }
   | { type: 'nextHand' };
-export type RoomAction = GameAction | { type: 'restart'; confirmed: true };
+export type RoomAction = GameAction | { type: 'restart'; confirmed: true } | { type: 'addBot'; seat: number } | { type: 'removeBot'; seat: number };
 
 export type PublicPlayer = {
-  seat: number; nickname: string; connected: boolean; inactive: boolean; score: number;
+  seat: number; nickname: string; connected: boolean; inactive: boolean; score: number; bot: boolean;
   tricks: number; participating: boolean | null; cardCount: number;
 };
 export type Snapshot = {

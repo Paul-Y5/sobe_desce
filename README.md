@@ -1,6 +1,6 @@
 # Sobe e Desce
 
-A playable, guest-only, four-person implementation of **traditional-pt-v1**, built with Expo, React Native, TypeScript and Socket.IO. The same screens run on web, Android and iOS. All game-facing copy is European Portuguese. These are this product's variant rules, not a claim that Portugal has one official ruleset.
+A playable four-seat implementation with guest entry, optional accounts, room chat and training bots of **traditional-pt-v1**, built with Expo, React Native, TypeScript and Socket.IO. The same screens run on web, Android and iOS. All game-facing copy is European Portuguese. These are this product's variant rules, not a claim that Portugal has one official ruleset.
 
 ## Run locally
 
@@ -22,7 +22,7 @@ npm run dev:server
 npm run dev:web
 ```
 
-Open `http://localhost:8081`. Enter a nickname, create a room, and share the six-character room code. Three friends enter the code; the creator starts the match. For a local demonstration, use four separate tabs or browser contexts. Web sessions are per tab. Duplicate nicknames are allowed; seats remain distinct.
+Open `http://localhost:8081`. Enter a nickname, create a room, and share the six-character room code. Three friends enter the code; the creator starts the match. For practice, the creator can fill empty lobby seats with clearly marked bots. For a local demonstration, use four separate tabs or browser contexts. Web sessions are per tab. Duplicate nicknames are allowed; seats remain distinct.
 
 On first visit, choose whether to open the six-step visual tutorial. It includes interactive trump, exchange and legal-play examples and is always available from **Como jogar**. The answer is a non-sensitive device preference (web localStorage/native SecureStore), separate from the per-tab guest session. Card/phase/result animations respect reduced-motion preferences and never delay authoritative game actions.
 
@@ -39,7 +39,7 @@ The default server is `http://localhost:3001`; `/health` returns a small health 
 5. The server binds `0.0.0.0` by default. Allow TCP ports 3001 and 8081 through the local firewall.
 6. For browsers, visit `http://192.168.1.50:8081`. For native Expo, run `npm run start -w client -- --lan` and scan with an Expo Go version supporting SDK 57, or use an SDK 57 development build. A Metro tunnel does **not** expose the separate game server.
 
-Native credentials use Expo SecureStore; web credentials use sessionStorage. Android/iOS native packaging and store submission are outside this MVP. A physical-device runtime test is still required before native release.
+Native credentials use Expo SecureStore. Web seat credentials use per-tab sessionStorage; account sessions use HttpOnly cookies. For accounts on the LAN, also set `AUTH_BASE_URL` to the LAN server URL. Android/iOS native packaging and store submission are outside this MVP. A physical-device runtime test is still required before native release.
 
 ## Commands
 
@@ -54,7 +54,9 @@ Native credentials use Expo SecureStore; web credentials use sessionStorage. And
 | `npm run build:web` | Export web files into `client/dist` |
 | `npm run build:server` | Compile server/shared into root `dist` |
 | `npm run start -w server` | Run the compiled server |
-| `npm run test:browser` | Playwright: four browser sessions through a full match; narrow-screen smoke |
+| `npm run test:browser` | Playwright: full match, tutorial, inactivity, accounts, chat/bots and narrow touch view |
+| `npm run admin:promote -w server -- email` | Grant an existing account administrator access locally |
+| `node --import tsx observability/smoke.ts` | Temporary Docker metrics pipeline check |
 
 For Playwright, first run `npx playwright install chromium`, or set `PLAYWRIGHT_CHROMIUM_PATH` to an installed Chromium executable. Tests start isolated servers on ports **3101** (game), **8181** (Expo) and **3102** (test clock control); they never reuse an ongoing development match. The client test URL is set explicitly, overriding the local `.env` server URL. `e2e/server.ts` provides the loopback-only clock control so six-minute inactivity behavior is tested without a six-minute wait. It is not part of the production server build or entry point. Tests need permission to bind localhost and launch a browser.
 
@@ -93,7 +95,7 @@ server/   in-memory rooms, opaque sessions, payload validation, shuffle, transpo
 shared/   pure rules engine, domain types, immutable rules, typed event contracts
 ```
 
-No Redux, database, generic game framework, bots, or background autoplayer. The engine imports no React, networking, filesystem or storage code. Its pure transition clones state before validating/mutating; rejection cannot modify its input. Tests supply deterministic decks; the server alone shuffles using cryptographic Fisher–Yates (`randomInt`).
+No Redux or generic card-game framework. Account data uses SQLite; matches remain in memory. Optional training bots run as scheduled server decisions and never replace human seats. The engine imports no React, networking, filesystem or storage code. Its pure transition clones state before validating/mutating; rejection cannot modify its input. Tests supply deterministic decks; the server alone shuffles using cryptographic Fisher–Yates (`randomInt`).
 
 Phases are `lobby → trumpSelection → participationExchange → trickPlay → handComplete → trumpSelection`, ending at `matchComplete` when someone reaches zero. Restart returns to the lobby. Lobby membership is owned by the room; active hand state is owned by the engine.
 
@@ -108,14 +110,14 @@ Every match stores its `rulesetId` and a copied, deeply frozen `Rules` configura
 - Every `snapshot` explicitly projects public fields plus **only the recipient's hand and legal card IDs**. No deck, discards, other private hands, credentials or internal state spreads. Played cards and completed tricks are public.
 - A reconnect restores the seat and sends a new snapshot. A second connection with the same credential supersedes the old socket. Disconnected seats stay reserved; no timeout takes decisions or plays cards.
 - Each room carries a five-minute warning deadline and a further one-minute disconnect deadline. Server timers enforce them; the pure game engine has no time/network dependency. A warning refreshes authorized snapshots without changing the game revision. Presence changes and rejected commands do not reset deadlines. After a timeout the client must explicitly resume with `returnFromInactivity`; ordinary network recovery retains the original deadline. Successful decisions and explicit inactive return start a new five-minute window. When a hand/match ends or a room restarts, pending turn timers are cancelled.
-- The creator can confirm a restart: scores/cards reset, connected players keep seats, disconnected seats and their credentials are removed. If the creator cannot reconnect, friends must create another room. There is no host migration.
+- The creator can confirm a restart: scores/cards reset, connected humans and bots keep seats, disconnected human seats and their credentials are removed. Room chat and mutes are cleared. If the creator cannot reconnect, friends must create another room. There is no host migration.
 - Schemas limit nickname/payload sizes; Socket.IO packets are capped at 8 KiB. Browser Origin checks apply to both polling and WebSocket connections. Native clients have no browser Origin. Per-connection rate limiting is 120 acknowledged requests per ten seconds; this is not full internet-scale abuse protection.
 
 ### Storage and limits
 
-**All rooms and sessions live in memory on one server. Restarting the server ends every active match.** No durable recovery or horizontal scaling. Entirely disconnected rooms expire after 24 hours; connected rooms do not expire automatically. There is a cap of 100 rooms and 10,000 accepted commands per seat. These bounds are modest operational safeguards, not production capacity claims.
+**Rooms, seat sessions and chat live in memory on one server. Restarting the server ends every active match. Account records and account sessions persist in SQLite.** No durable recovery or horizontal scaling. Entirely disconnected rooms expire after 24 hours; connected rooms do not expire automatically. There is a cap of 100 rooms and 10,000 accepted commands per seat. These bounds are modest operational safeguards, not production capacity claims.
 
-Web sessionStorage survives reloads in the same tab but closing the tab normally loses that seat credential. Opening a new independent tab creates a separate guest; duplicating a tab can copy browser sessionStorage and supersede the first connection. Native SecureStore persists across application launches. If storage is unavailable, an explicit warning explains that reload recovery is unavailable. A stolen credential can impersonate that guest. Web storage is JS-readable; the client renders nickname text through React, injects no user HTML and includes no third-party scripts. These are guest sessions, not an account authentication system.
+Web sessionStorage survives reloads in the same tab but closing the tab normally loses that seat credential. Opening a new independent tab creates a separate guest; duplicating a tab can copy browser sessionStorage and supersede the first connection. Native SecureStore persists across application launches. If storage is unavailable, an explicit warning explains that reload recovery is unavailable. A stolen credential can impersonate that guest. Web storage is JS-readable; the client renders nickname text through React, injects no user HTML and includes no third-party scripts. These seat credentials are separate from account sessions; account-owned seats additionally require the same authenticated account.
 
 ## Future variants
 
@@ -126,9 +128,9 @@ Keep additions close to the relevant rules, engine, and contracts; do not create
 - **Poker variant:** introduce a separate pure poker-hand evaluator with its own fixtures and a separate phase flow if needed. Do not change trick-winning comparison to evaluate poker combinations.
 - **Fictional chips:** model a server-authoritative fictional balance/ledger and explicitly defined betting phases/actions in a new variant. No purchases, cash redemption, or prizes with monetary value in the proposed extension. Nothing involving chips is implemented here. Simulated betting does not automatically establish legal compliance; any monetization or prizes require a separate assessment.
 
-Accounts, matchmaking, chat, leaderboards, payments, and store publishing are deliberately excluded.
+Matchmaking, leaderboards, payments and store publishing remain excluded.
 
-The next phases for **accounts/users, administration, Grafana Alloy observability, match chat and bots** are planned in [docs/next-phases.md](docs/next-phases.md), with dependencies, privacy/authorization boundaries and acceptance criteria. They are not implemented by the tutorial/animation increment. In particular, bots do not yet fill or replace any seat.
+The three requested phases are implemented locally: [accounts/admin](docs/accounts.md), [Grafana/metrics](docs/observability.md), and [chat/bots](docs/chat-and-bots.md). See [remaining follow-ups](docs/next-phases.md).
 
 ## Verification and limitations
 
@@ -136,7 +138,7 @@ See [verification evidence](docs/verification.md) for actual checks and coverage
 
 No native simulator or physical device is available in the development environment. Native JavaScript export and TypeScript checks cannot establish native runtime behavior. There is no separate lint configuration; strict TypeScript and focused source review are used for this small MVP.
 
-`npm audit` currently reports upstream Expo/React Native tooling and Expo Router transitive advisories (including `braces`, `node-forge`, `uuid`, and `decode-uri-component`). Some have no published compatible fix; npm's force recommendations include incompatible framework downgrades. We preserve the Expo SDK57 compatibility set and lockfile rather than claiming a clean audit. Reassess upstream fixes before internet-facing release. The authoritative server's direct runtime dependencies are Socket.IO and Zod; inspect its production dependency audit separately.
+`npm audit` currently reports upstream Expo/React Native tooling and Expo Router transitive advisories (including `braces`, `node-forge`, `uuid`, and `decode-uri-component`). Some have no published compatible fix; npm's force recommendations include incompatible framework downgrades. We preserve the Expo SDK57 compatibility set and lockfile rather than claiming a clean audit. Reassess upstream fixes before internet-facing release. The server uses Socket.IO, Zod, Better Auth and the official Prometheus client; inspect its production dependency audit separately.
 
 Dependency baseline: [Expo SDK57 compatibility manifest](https://raw.githubusercontent.com/expo/expo/sdk-57/packages/expo/bundledNativeModules.json), [Expo monorepo support](https://docs.expo.dev/guides/monorepos/), and [Expo Router session storage guidance](https://docs.expo.dev/router/advanced/authentication/).
 

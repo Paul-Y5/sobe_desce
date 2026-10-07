@@ -1,12 +1,13 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { ClientEvents, Reply, RoomAction, ServerEvents, Session, Snapshot } from '../../shared/index';
+import type { ChatState, ClientEvents, Reply, RoomAction, ServerEvents, Session, Snapshot } from '../../shared/index';
 import { useAccount } from './AccountContext';
 import { readAccountToken } from './accountStorage';
 import { loadSession, saveSession } from './session';
 
 type Connection = 'connecting' | 'ready' | 'reconnecting' | 'replaced' | 'inactive';
 type Context = {
+  chat: ChatState; sendChat: (text: string) => Promise<void>; moderateChat: (seat: number, muted: boolean) => Promise<void>;
   snapshot: Snapshot | null; connection: Connection; busy: boolean; error: string;
   clock: { serverTime: number; receivedAt: number };
   returnToGame: () => void;
@@ -18,6 +19,7 @@ type GameSocket = Socket<ServerEvents, ClientEvents>;
 const inactivityMessage = 'Já passaram cinco minutos. Tem mais um minuto para decidir antes de ser desligado por inatividade.';
 export function GameProvider({ children }: { children: ReactNode }) {
   const account = useAccount();
+  const [chat, setChat] = useState<ChatState>({ messages: [], mutedSeats: [] });
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [clock, setClock] = useState({ serverTime: 0, receivedAt: 0 });
   const [connection, setConnection] = useState<Connection>('connecting');
@@ -29,16 +31,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const requestPrefix = useRef(`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
   useEffect(() => {
     if (!account.ready) return;
+    setSnapshot(null); setChat({ messages: [], mutedSeats: [] });
     let disposed = false;
     const s: GameSocket = io(process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:3001', { autoConnect: false, withCredentials: true, auth: callback => { void readAccountToken().then(accountToken => callback({ accountToken })).catch(() => callback({})); } });
     socket.current = s;
+    s.on('chatState', setChat);
     s.on('snapshot', next => {
       if (deadline.current !== next.turnDeadline) setError(current => current === inactivityMessage ? '' : current);
       deadline.current = next.turnDeadline;
       setClock({ serverTime: next.serverTime, receivedAt: performance.now() });
       setSnapshot(next);
     });
-    s.on('accountRevoked', () => { setConnection('replaced'); setError('A sessão da conta terminou. Entre novamente na conta.'); });
+    s.on('accountRevoked', () => { setConnection('replaced'); setSnapshot(null); setError('A sessão da conta terminou. Entre novamente na conta.'); void account.refresh(); });
     s.on('replaced', () => {
       setConnection('replaced');
       setError('Esta sessão foi aberta noutra ligação. Pode voltar ao início para criar uma nova sessão.');
@@ -54,8 +58,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         if (timeout) { s.disconnect(); s.connect(); return; }
         explicitReturn.current = false;
         if (!reply.ok) {
+          if (reply.code === 'ACCOUNT_REQUIRED') { setConnection('replaced'); setError(reply.message); return; }
           if (reply.code === 'INACTIVE_SESSION') { setConnection('inactive'); setError(reply.message); return; }
-          session.current = null; setSnapshot(null); setError(reply.message);
+          session.current = null; setSnapshot(null); setChat({ messages: [], mutedSeats: [] }); setError(reply.message);
           void saveSession(null).catch(() => {});
         }
         setConnection('ready');
@@ -98,6 +103,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     } finally { pending.current = false; setBusy(false); }
   }
   function reset() {
+    setChat({ messages: [], mutedSeats: [] });
     session.current = null; setSnapshot(null); setError(''); setConnection('connecting');
     void saveSession(null).catch(() => {});
     socket.current?.disconnect(); socket.current?.connect();
@@ -106,7 +112,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
     explicitReturn.current = true; setError(''); setConnection('reconnecting');
     socket.current?.disconnect(); socket.current?.connect();
   }
-  return <GameContext.Provider value={{ snapshot, clock, connection, busy, error, enter, act, dismissError: () => setError(''), reset, returnToGame }}>{children}</GameContext.Provider>;
+  async function sendChat(text: string) {
+    const s = socket.current;
+    if (!s?.connected || connection !== 'ready') throw new Error('Aguarde pela ligação à sala.');
+    const reply = await s.timeout(8000).emitWithAck('chat', { requestId: `${requestPrefix.current}-chat-${++counter.current}`, text });
+    if (!reply.ok) throw new Error(reply.message);
+  }
+  async function moderateChat(seat: number, muted: boolean) {
+    const s = socket.current;
+    if (!s?.connected || connection !== 'ready') throw new Error('Aguarde pela ligação à sala.');
+    const reply = await s.timeout(8000).emitWithAck('moderateChat', { requestId: `${requestPrefix.current}-moderate-${++counter.current}`, seat, muted });
+    if (!reply.ok) throw new Error(reply.message);
+  }
+  return <GameContext.Provider value={{ snapshot, clock, connection, busy, error, enter, act, chat, sendChat, moderateChat, dismissError: () => setError(''), reset, returnToGame }}>{children}</GameContext.Provider>;
 }
 export function useGame() {
   const value = useContext(GameContext);

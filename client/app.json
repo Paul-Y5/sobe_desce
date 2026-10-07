@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Sobe e Desce",
+    "slug": "sobe-e-desce",
+    "scheme": "sobedesce",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "plugins": ["expo-router", "expo-secure-store"],
+    "web": { "bundler": "metro", "output": "single", "name": "Sobe e Desce", "lang": "pt-PT" },
+    "ios": { "supportsTablet": true },
+    "android": { "package": "pt.sobedesce.app" }
+  }
+}

@@ -1,0 +1,45 @@
+services:
+  alloy:
+    image: grafana/alloy:v1.20.1
+    command: [run, --server.http.listen-addr=0.0.0.0:12345, --storage.path=/var/lib/alloy/data, /etc/alloy/config.alloy]
+    environment:
+      METRICS_TOKEN: ${METRICS_TOKEN:?Set the same METRICS_TOKEN as the game server}
+      GAME_TARGET: ${GAME_TARGET:-host.docker.internal:3001}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+    ports: ["127.0.0.1:${ALLOY_PORT:-12345}:12345"]
+    depends_on: [prometheus]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    command: [--config.file=/etc/prometheus/prometheus.yml, --web.enable-remote-write-receiver, --storage.tsdb.retention.time=7d]
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports: ["127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+  grafana:
+    image: grafana/grafana:13.2.3
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set a local Grafana password}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./provisioning:/etc/grafana/provisioning:ro
+      - ./dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports: ["127.0.0.1:${GRAFANA_PORT:-3300}:3000"]
+    depends_on: [prometheus]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+volumes:
+  alloy-data:
+  prometheus-data:
+  grafana-data:

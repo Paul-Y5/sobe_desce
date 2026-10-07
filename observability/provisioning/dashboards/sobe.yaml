@@ -1,0 +1,6 @@
+apiVersion: 1
+providers:
+  - name: Sobe e Desce
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

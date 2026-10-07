@@ -1,0 +1,229 @@
+{
+  "uid": "sobe-overview",
+  "title": "Sobe e Desce \u00b7 Servidor",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Salas",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sobe-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sobe_rooms",
+          "refId": "A",
+          "legendFormat": "{{result}} {{event}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "title": "Liga\u00e7\u00f5es",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sobe-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sobe_connections",
+          "refId": "A",
+          "legendFormat": "{{result}} {{event}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "title": "Partidas em curso",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sobe-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sobe_matches",
+          "refId": "A",
+          "legendFormat": "{{result}} {{event}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "title": "Comandos por segundo",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sobe-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(sobe_commands_total[5m]))",
+          "refId": "A",
+          "legendFormat": "{{result}} {{event}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 5,
+      "title": "Tempo de processamento p95",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sobe-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(sobe_command_duration_seconds_bucket[5m])))",
+          "refId": "A",
+          "legendFormat": "{{result}} {{event}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 6,
+      "title": "Reconex\u00f5es e inatividade",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sobe-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (event) (rate(sobe_events_total[5m]))",
+          "refId": "A",
+          "legendFormat": "{{result}} {{event}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 7,
+      "title": "Mem\u00f3ria residente",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sobe-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sobe_process_resident_memory_bytes",
+          "refId": "A",
+          "legendFormat": "{{result}} {{event}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 8,
+      "title": "Atraso do ciclo de eventos p99",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "sobe-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sobe_nodejs_eventloop_lag_p99_seconds",
+          "refId": "A",
+          "legendFormat": "{{result}} {{event}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+groups:
+  - name: sobe
+    rules:
+      - alert: SobeUnavailable
+        expr: up{job="prometheus.scrape.sobe"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "O servidor Sobe e Desce não responde à recolha de métricas."
+      - alert: SobeEventLoopLag
+        expr: sobe_nodejs_eventloop_lag_p99_seconds > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "O servidor está a demorar a processar eventos."

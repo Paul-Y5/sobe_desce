@@ -1,0 +1,15 @@
+prometheus.scrape "sobe" {
+  targets = [{ "__address__" = sys.env("GAME_TARGET") }]
+  scrape_interval = "10s"
+  authorization {
+    type = "Bearer"
+    credentials = sys.env("METRICS_TOKEN")
+  }
+  forward_to = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.remote_write "local" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+  }
+}

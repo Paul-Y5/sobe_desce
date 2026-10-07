@@ -143,3 +143,7 @@ Dependency baseline: [Expo SDK57 compatibility manifest](https://raw.githubuserc
 ## Optional accounts and administration
 
 See [account setup and limits](docs/accounts.md). Guest play remains available. Account data persists in SQLite; active matches still end when the server restarts.
+
+## Metrics and Grafana
+
+See [local observability setup](docs/observability.md) for the protected metrics endpoint, Alloy/Prometheus/Grafana Compose stack, provisioned dashboard, and an executable pipeline smoke test.

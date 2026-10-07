@@ -12,6 +12,7 @@ export interface ClientEvents {
   command: (command: Command, ack: Ack) => void;
 }
 export interface ServerEvents {
+  accountRevoked: () => void;
   snapshot: (snapshot: Snapshot) => void;
   replaced: () => void;
   inactivityWarning: () => void;

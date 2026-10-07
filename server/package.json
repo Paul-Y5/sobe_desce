@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=.env index.ts",
-    "start": "node --env-file-if-exists=.env ../dist/server/index.js"
+    "start": "node --env-file-if-exists=.env ../dist/server/index.js",
+    "admin:promote": "tsx --env-file-if-exists=.env promote-admin.ts"
   },
   "dependencies": {
+    "better-auth": "1.7.7",
     "socket.io": "4.8.4",
     "zod": "4.6.5"
   }

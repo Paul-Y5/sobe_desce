@@ -9,3 +9,7 @@ test-results/
 .env.*
 !.env.example
 *.tsbuildinfo
+data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

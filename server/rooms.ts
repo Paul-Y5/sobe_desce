@@ -2,6 +2,7 @@ import { createServer as createHttpServer } from 'node:http';
 import { randomBytes, randomInt } from 'node:crypto';
 import { Server, type Socket } from 'socket.io';
 import { z } from 'zod';
+import type { Accounts } from './accounts.js';
 import { applyAction, createDeck, createGame, GameError, legalCards } from '../shared/engine.js';
 import { SUITS, TRADITIONAL_RULES, type ClientEvents, type ServerEvents, type Snapshot, type GameState, type Session, type Reply } from '../shared/index.js';
 
@@ -35,11 +36,11 @@ const messages: Record<string, string> = {
   INTERNAL: 'Não foi possível concluir o pedido. Tente novamente.',
   INACTIVE_SESSION: 'Foi desligado por inatividade. Carregue em «Voltar à partida» para regressar.',
 };
-type Member = { nickname: string; token: string; socketId: string | null; requests: Set<string>; inactive: boolean };
+type Member = { nickname: string; token: string; socketId: string | null; requests: Set<string>; inactive: boolean; userId?: string };
 type Room = { code: string; creator: number; revision: number; members: (Member | null)[]; game: GameState | null; lastActivity: number; turnDeadline: number | null; warned: boolean; cancelTimer?: () => void };
-type Data = { session?: Session; seat?: number };
+type Data = { session?: Session; seat?: number; userId?: string };
 type GameSocket = Socket<ClientEvents, ServerEvents, Record<string, never>, Data>;
-type Options = { origins?: string[]; rateLimit?: number; maxRooms?: number; roomTtlMs?: number; now?: () => number; schedule?: (run: () => void, delay: number) => () => void };
+type Options = { accounts?: Accounts; origins?: string[]; rateLimit?: number; maxRooms?: number; roomTtlMs?: number; now?: () => number; schedule?: (run: () => void, delay: number) => () => void };
 const TURN_DURATION_MS = 5 * 60 * 1000;
 const GRACE_DURATION_MS = 60 * 1000;
 
@@ -60,16 +61,31 @@ export function createServer(options: Options = {}) {
   });
   const rooms = new Map<string, Room>();
   const origins = options.origins ?? ['http://localhost:8081'];
-  const http = createHttpServer((req, res) => {
+  const http = createHttpServer(async (req, res) => {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    try { if (await options.accounts?.handle(req, res)) return; }
+    catch { res.writeHead(500); res.end(JSON.stringify({ error: 'Não foi possível concluir o pedido.' })); return; }
     res.writeHead(req.url === '/health' ? 200 : 404);
     res.end(JSON.stringify(req.url === '/health' ? { ok: true } : { error: 'Não encontrado.' }));
   });
   const io = new Server<ClientEvents, ServerEvents, Record<string, never>, Data>(http, {
-    cors: { origin: origins }, maxHttpBufferSize: 8192,
+    cors: { origin: origins, credentials: true }, maxHttpBufferSize: 8192,
     // Native clients have no Origin; browser origins must match even for WebSocket transport.
     allowRequest: (req, done) => done(null, !req.headers.origin || origins.includes(req.headers.origin)),
+  });
+  const accountHeaders = (socket: GameSocket) => ({ ...socket.handshake.headers,
+    ...(typeof socket.handshake.auth.accountToken === 'string' ? { authorization: `Bearer ${socket.handshake.auth.accountToken}` } : {}) });
+  io.use(async (socket, next) => {
+    try {
+      const user = await options.accounts?.authenticate(accountHeaders(socket));
+      if (socket.handshake.auth.accountToken && !user) return next(new Error('Sessão de conta terminada.'));
+      socket.data.userId = user?.id;
+      next();
+    } catch { next(new Error('Não foi possível validar a conta.')); }
+  });
+  options.accounts?.setOnRevoke(id => {
+    for (const socket of io.sockets.sockets.values()) if (socket.data.userId === id) { socket.emit('accountRevoked'); socket.disconnect(true); }
   });
   function snapshot(room: Room, seat: number): Snapshot {
     const g = room.game;
@@ -142,6 +158,14 @@ export function createServer(options: Options = {}) {
     room.revision++; room.lastActivity = now(); publish(room);
   }
   io.on('connection', socket => {
+    socket.use(async (_packet, next) => {
+      if (!socket.data.userId) { next(); return; }
+      try {
+        const user = await options.accounts?.authenticate(accountHeaders(socket));
+        if (user?.id !== socket.data.userId) { socket.emit('accountRevoked'); socket.disconnect(true); return; }
+        next();
+      } catch { socket.emit('accountRevoked'); socket.disconnect(true); }
+    });
     let windowStart = Date.now(), count = 0;
     function handle<T>(ack: unknown, operation: () => T) {
       if (typeof ack !== 'function') return;
@@ -179,7 +203,7 @@ export function createServer(options: Options = {}) {
       }
       const seat = room.members.findIndex(m => !m);
       if (seat < 0) throw new GameError('ROOM_FULL');
-      room.members[seat] = { nickname: entry.nickname, token: randomBytes(32).toString('hex'), socketId: null, requests: new Set(), inactive: false };
+      room.members[seat] = { nickname: entry.nickname, token: randomBytes(32).toString('hex'), socketId: null, requests: new Set(), inactive: false, userId: socket.data.userId };
       bind(socket, room, seat);
       return socket.data.session!;
     }));
@@ -189,6 +213,7 @@ export function createServer(options: Options = {}) {
       const room = rooms.get(session.roomCode);
       const seat = room?.members.findIndex(m => m?.token === session.token) ?? -1;
       if (!room || seat < 0) throw new GameError('INVALID_SESSION');
+      if (room.members[seat]!.userId && room.members[seat]!.userId !== socket.data.userId) throw new GameError('INVALID_SESSION');
       checkInactivity(room);
       if (room.members[seat]!.inactive) {
         if (!session.returnFromInactivity) throw new GameError('INACTIVE_SESSION');

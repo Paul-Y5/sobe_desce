@@ -139,3 +139,7 @@ No native simulator or physical device is available in the development environme
 `npm audit` currently reports upstream Expo/React Native tooling and Expo Router transitive advisories (including `braces`, `node-forge`, `uuid`, and `decode-uri-component`). Some have no published compatible fix; npm's force recommendations include incompatible framework downgrades. We preserve the Expo SDK57 compatibility set and lockfile rather than claiming a clean audit. Reassess upstream fixes before internet-facing release. The authoritative server's direct runtime dependencies are Socket.IO and Zod; inspect its production dependency audit separately.
 
 Dependency baseline: [Expo SDK57 compatibility manifest](https://raw.githubusercontent.com/expo/expo/sdk-57/packages/expo/bundledNativeModules.json), [Expo monorepo support](https://docs.expo.dev/guides/monorepos/), and [Expo Router session storage guidance](https://docs.expo.dev/router/advanced/authentication/).
+
+## Optional accounts and administration
+
+See [account setup and limits](docs/accounts.md). Guest play remains available. Account data persists in SQLite; active matches still end when the server restarts.

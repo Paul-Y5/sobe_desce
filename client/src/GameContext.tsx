@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type { ClientEvents, Reply, RoomAction, ServerEvents, Session, Snapshot } from '../../shared/index';
+import { useAccount } from './AccountContext';
+import { readAccountToken } from './accountStorage';
 import { loadSession, saveSession } from './session';
 
 type Connection = 'connecting' | 'ready' | 'reconnecting' | 'replaced' | 'inactive';
@@ -15,6 +17,7 @@ const GameContext = createContext<Context | null>(null);
 type GameSocket = Socket<ServerEvents, ClientEvents>;
 const inactivityMessage = 'Já passaram cinco minutos. Tem mais um minuto para decidir antes de ser desligado por inatividade.';
 export function GameProvider({ children }: { children: ReactNode }) {
+  const account = useAccount();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [clock, setClock] = useState({ serverTime: 0, receivedAt: 0 });
   const [connection, setConnection] = useState<Connection>('connecting');
@@ -25,8 +28,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const deadline = useRef<number | null>(null);
   const requestPrefix = useRef(`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
   useEffect(() => {
+    if (!account.ready) return;
     let disposed = false;
-    const s: GameSocket = io(process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:3001', { autoConnect: false });
+    const s: GameSocket = io(process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:3001', { autoConnect: false, withCredentials: true, auth: callback => { void readAccountToken().then(accountToken => callback({ accountToken })).catch(() => callback({})); } });
     socket.current = s;
     s.on('snapshot', next => {
       if (deadline.current !== next.turnDeadline) setError(current => current === inactivityMessage ? '' : current);
@@ -34,6 +38,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setClock({ serverTime: next.serverTime, receivedAt: performance.now() });
       setSnapshot(next);
     });
+    s.on('accountRevoked', () => { setConnection('replaced'); setError('A sessão da conta terminou. Entre novamente na conta.'); });
     s.on('replaced', () => {
       setConnection('replaced');
       setError('Esta sessão foi aberta noutra ligação. Pode voltar ao início para criar uma nova sessão.');
@@ -60,7 +65,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setError('Não foi possível recuperar a sessão guardada. Pode entrar novamente.');
     }).finally(() => { if (!disposed) s.connect(); });
     return () => { disposed = true; s.removeAllListeners(); s.disconnect(); };
-  }, []);
+  }, [account.ready, account.generation]);
   async function enter(nickname: string, roomCode?: string) {
     const s = socket.current;
     if (!s?.connected || pending.current || session.current) return;

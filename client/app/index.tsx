@@ -16,6 +16,7 @@ export default function Home() {
     <OnboardingPrompt eligible={!game.snapshot && (game.connection === 'ready' || game.connection === 'reconnecting')} />
     <View style={s.header}>
       <View><Text style={s.eyebrow}>À MESA COM AMIGOS</Text><Text style={s.brand}>Sobe e Desce<Text style={{ color: colors.green }}> ♣</Text></Text></View>
+      <Link href="/account" style={s.label}>Conta</Link>
       <Link href="/rules" asChild><Pressable accessibilityRole="link" style={styles.rulesLink}><Text style={s.label}>Como jogar ↗</Text></Pressable></Link>
     </View>
     {game.connection !== 'ready' && <View style={s.notice}><Text style={s.label} accessibilityLiveRegion="polite">{game.connection === 'connecting' ? 'A ligar ao servidor…' : game.connection === 'replaced' ? 'Sessão aberta noutra ligação' : game.connection === 'inactive' ? 'Desligado por inatividade · lugar reservado' : 'A restabelecer ligação… O seu lugar está reservado.'}</Text>{game.connection === 'replaced' && <Button title="Voltar ao início" onPress={game.reset} />}{game.connection === 'inactive' && <Button title="Voltar à partida" onPress={game.returnToGame} />}</View>}

@@ -33,6 +33,8 @@ npm run dev:web
 
 Open `http://localhost:8081`. Enter a nickname, create a room, and share the six-character room code. Three friends enter the code; the creator starts the match. For practice, the creator can fill empty lobby seats with clearly marked bots. For a local demonstration, use four separate tabs or browser contexts. Web sessions are per tab. Duplicate nicknames are allowed; seats remain distinct.
 
+Choose **Base**, **Competitivo** or **Infinito** in the lobby. Competitive defaults to first to four game wins; three lines means twelve wins. Infinite keeps negative points and ends only when the host confirms between hands. **Ver pontuações** opens the avatar bar chart at any time; it also appears after each hand.
+
 On first visit, choose whether to open the six-step visual tutorial. It includes interactive trump, exchange and legal-play examples and is always available from **Como jogar**. The answer is a non-sensitive device preference (web localStorage/native SecureStore), separate from the per-tab guest session. Card/phase/result animations respect reduced-motion preferences and never delay authoritative game actions.
 
 Each trump choice, participation/exchange decision and card play has **five minutes**, followed by a warning and **one minute of grace**. The server then disconnects the inactive player, preserving their seat/cards/scores. Select **Voltar à partida** to return with five fresh minutes; reloading or automatic reconnection does not bypass inactivity. There is no automatic card play, point penalty or bot takeover. Until return, the table waits at that seat or the creator can confirm a restart.
@@ -63,9 +65,10 @@ Native credentials use Expo SecureStore. Web seat credentials use per-tab sessio
 | `npm run build:web` | Export web files into `client/dist` |
 | `npm run build:server` | Compile server/shared into `server/dist` |
 | `npm run start -w server` | Run the compiled server |
-| `npm run test:browser` | Playwright: full match, tutorial, inactivity, accounts, chat/bots and narrow touch view |
+| `npm run test:browser` | Playwright: full match, modes, tutorial, inactivity, accounts, chat/bots and narrow touch view |
 | `npm run admin:promote -w server -- email` | Grant an existing account administrator access locally |
 | `node --import tsx observability/smoke.ts` | Temporary Docker metrics pipeline check |
+| `node deploy/smoke.mjs` | Full Compose browser, account persistence and metrics check; requires local-tag images |
 
 For Playwright, first run `npx playwright install chromium`, or set `PLAYWRIGHT_CHROMIUM_PATH` to an installed Chromium executable. Tests start isolated servers on ports **3101** (game), **8181** (Expo) and **3102** (test clock control); they never reuse an ongoing development match. The client test URL is set explicitly, overriding the local `.env` server URL. `e2e/server.ts` provides the loopback-only clock control so six-minute inactivity behavior is tested without a six-minute wait. It is not part of the production server build or entry point. Tests need permission to bind localhost and launch a browser.
 
@@ -77,11 +80,11 @@ npx expo export --platform android --platform ios --output-dir dist-native
 npx expo install --check
 ```
 
-Serve the exported web app with SPA fallback to `index.html` for `/rules` and other routes. Host the Socket.IO server separately, keep it on one instance, and configure `CLIENT_ORIGINS` to the actual web origin. Use HTTPS/WSS together outside local development, and proxy both Socket.IO HTTP polling and WebSocket upgrade traffic. Static hosting alone cannot run the game server. No deployment is performed by this repository.
+For hosting outside the supplied Compose stack, serve the exported web app with SPA fallback to `index.html` for `/rules` and other routes. Host the Socket.IO server separately, keep it on one instance, and configure `CLIENT_ORIGINS` to the actual web origin. Use HTTPS/WSS together outside local development, and proxy both Socket.IO HTTP polling and WebSocket upgrade traffic. Static hosting alone cannot run the game server. External hosting and publishing remain manual.
 
 ## Rules: traditional-pt-v1
 
-The in-app **Como jogar** screen explains these rules in European Portuguese.
+The in-app **Como jogar** screen explains these rules in European Portuguese. The rules below describe Base; [the three match modes](docs/game-modes.md) document Competitive line targets and Infinite signed scoring.
 
 - Four fixed seats; individual competition. Everyone starts at 20. Seat 1 deals first; the dealer advances one seat each hand. Seat order wraps 1 → 2 → 3 → 4 → 1.
 - Forty cards, no jokers or ranks 8–10. Ranking: **Ace > 7 > King > Jack > Queen > 6 > 5 > 4 > 3 > 2**. Only tricks count, not card point values.
@@ -106,9 +109,9 @@ shared/   pure rules engine, domain types, immutable rules, typed event contract
 
 No Redux or generic card-game framework. Account data uses SQLite; matches remain in memory. Optional training bots run as scheduled server decisions and never replace human seats. The engine imports no React, networking, filesystem or storage code. Its pure transition clones state before validating/mutating; rejection cannot modify its input. Tests supply deterministic decks; the server alone shuffles using cryptographic Fisher–Yates (`randomInt`).
 
-Phases are `lobby → trumpSelection → participationExchange → trickPlay → handComplete → trumpSelection`, ending at `matchComplete` when someone reaches zero. Restart returns to the lobby. Lobby membership is owned by the room; active hand state is owned by the engine.
+Phases are `lobby → trumpSelection → participationExchange → trickPlay → handComplete → trumpSelection`. Base games end at `matchComplete` when someone reaches zero. Competitive uses that same game boundary and permits `nextGame` until the victory target is reached; Infinite ends only through a confirmed finish between hands. Restart returns to the lobby. Lobby membership is owned by the room; active hand state and competitive totals are owned by the engine.
 
-Every match stores its `rulesetId` and a copied, deeply frozen `Rules` configuration. The configuration holds initial score, exchange limit, compulsory suits, suit multipliers, overtaking, mandatory trump-Ace lead, and the explicitly supported at-or-below-zero/shared victory policy. Changing defaults does not change existing matches. Forty cards/four seats/five tricks stay explicit MVP rules, not speculative configurable machinery.
+Every match stores its `rulesetId`, a copied, deeply frozen `Rules` configuration, and an immutable format. The configuration holds initial score, exchange limit, compulsory suits, suit multipliers, overtaking, mandatory trump-Ace lead, and the zero-reaching policy (shared victory or unbounded scores). Changing defaults does not change existing matches. Forty cards/four seats/five tricks stay explicit MVP rules, not speculative configurable machinery.
 
 ### Transport and privacy
 

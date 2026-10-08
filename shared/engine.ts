@@ -1,5 +1,5 @@
-import { freezeRules, TRADITIONAL_RULES } from './rules.js';
-import { RANKS, SUITS, type Card, type GameAction, type GameState, type Play, type Rules, type Suit } from './types.js';
+import { BASE_FORMAT, freezeRules, TRADITIONAL_RULES } from './rules.js';
+import { RANKS, SUITS, type Card, type GameAction, type GameState, type MatchFormat, type Play, type Rules, type Suit } from './types.js';
 
 export class GameError extends Error {
   constructor(public code: string) { super(code); }
@@ -10,8 +10,11 @@ function requireCondition(ok: unknown, code: string): asserts ok {
 export function createDeck(): Card[] {
   return SUITS.flatMap(suit => RANKS.map(rank => ({ id: `${suit}-${rank}`, suit, rank })));
 }
-export function createGame(rules: Rules = TRADITIONAL_RULES): GameState {
+export function createGame(rules: Rules = TRADITIONAL_RULES, format: MatchFormat = BASE_FORMAT): GameState {
+  requireCondition(['base', 'competitive', 'infinite'].includes(format.mode) && Number.isInteger(format.linesToWin) && format.linesToWin >= 1 && format.linesToWin <= 10 && (format.mode === 'competitive' || format.linesToWin === 1), 'INVALID_FORMAT');
+  requireCondition((format.mode === 'infinite') === (rules.zeroReachingPolicy === 'unbounded'), 'INVALID_FORMAT');
   return {
+    format: Object.freeze({ ...format }), gameNumber: 1, gameWins: [0, 0, 0, 0], competitionWinners: [],
     rulesetId: rules.id, rules: freezeRules(rules), phase: 'lobby', dealer: 0, chooser: 1,
     turn: null, handNumber: 0, trump: null,
     players: Array.from({ length: 4 }, () => ({ hand: [], score: rules.initialScore, tricks: 0, participating: null })),
@@ -42,8 +45,11 @@ export function legalCards(hand: Card[], trick: Play[], trump: Suit, rules: Rule
 }
 export function scoreHand(players: { score: number; tricks: number; participating: boolean | null }[], trump: Suit, rules: Rules) {
   const multiplier = rules.scoringMultipliers[trump];
-  const scores = players.map(p => Math.max(0, p.score + (p.participating ? (p.tricks ? -p.tricks : 5) * multiplier : 0)));
-  const winners = scores.flatMap((score, seat) => score === 0 ? [seat] : []);
+  const scores = players.map(p => {
+    const result = p.score + (p.participating ? (p.tricks ? -p.tricks : 5) * multiplier : 0);
+    return rules.zeroReachingPolicy === 'unbounded' ? result : Math.max(0, result);
+  });
+  const winners = rules.zeroReachingPolicy === 'unbounded' ? [] : scores.flatMap((score, seat) => score === 0 ? [seat] : []);
   return { scores, winners };
 }
 function deal(g: GameState, count: number) {
@@ -73,6 +79,22 @@ export function applyAction(state: GameState, seat: number, action: GameAction, 
   requireCondition(Number.isInteger(seat) && seat >= 0 && seat < 4, 'NOT_MEMBER');
   const g = structuredClone(state);
   g.rules = freezeRules(state.rules);
+  g.format = Object.freeze({ ...state.format });
+  if (action.type === 'nextGame') {
+    requireCondition(g.format.mode === 'competitive' && g.phase === 'matchComplete' && g.competitionWinners.length === 0, 'WRONG_PHASE');
+    const next = createGame(g.rules, g.format);
+    next.gameWins = [...g.gameWins]; next.gameNumber = g.gameNumber + 1;
+    next.dealer = (g.dealer + 1) % 4;
+    beginHand(next, deck);
+    return next;
+  }
+  if (action.type === 'finishInfinite') {
+    requireCondition(g.format.mode === 'infinite' && g.phase === 'handComplete' && action.confirmed === true, 'WRONG_PHASE');
+    const minimum = Math.min(...g.players.map(p => p.score));
+    g.winners = g.players.flatMap((p, index) => p.score === minimum ? [index] : []);
+    g.phase = 'matchComplete';
+    return g;
+  }
   if (action.type === 'start') {
     requireCondition(g.phase === 'lobby', 'WRONG_PHASE');
     beginHand(g, deck);
@@ -128,6 +150,10 @@ export function applyAction(state: GameState, seat: number, action: GameAction, 
           g.players.forEach((p, i) => { p.score = scores[i]; });
           g.winners = winners; g.turn = null;
           g.phase = winners.length ? 'matchComplete' : 'handComplete';
+          if (winners.length && g.format.mode === 'competitive') {
+            for (const winner of winners) g.gameWins[winner]++;
+            g.competitionWinners = g.gameWins.flatMap((wins, index) => wins >= g.format.linesToWin * 4 ? [index] : []);
+          }
         }
       } else {
         do { g.turn = (g.turn! + 1) % 4; } while (!g.players[g.turn].participating);

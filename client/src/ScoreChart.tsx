@@ -2,25 +2,34 @@ import { useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Snapshot } from '../../shared/index';
 import { Button, colors, s } from './ui';
+import { CompetitionBoard, modeNames } from './MatchModes';
 
 export function ScoreChart({ state }: { state: Snapshot }) {
   const players = state.players.filter(player => player !== null);
-  const maximum = Math.max(1, ...players.map(player => player.score));
+  const maximum = Math.max(0, ...players.map(player => player.score));
+  const minimum = Math.min(0, ...players.map(player => player.score));
+  const range = Math.max(1, maximum - minimum);
+  const baseline = 64 + maximum / range * 132;
   return <View style={styles.chart} testID="score-chart">
     <Text style={s.heading}>Pontuações à vista</Text>
-    <Text style={s.body}>Quanto menos pontos, melhor. O objetivo é chegar a zero.</Text>
+    <Text style={s.body}>{state.format.mode === 'infinite' ? 'Quanto menos pontos, melhor. As barras abaixo da linha representam pontos negativos.' : 'Quanto menos pontos, melhor. O objetivo deste jogo é chegar a zero.'}</Text>
+    <Text style={styles.caption}>{modeNames[state.format.mode]}{state.format.mode === 'competitive' ? ` · Jogo ${state.gameNumber}` : ''}</Text>
     <View style={styles.columns}>
       {players.map(player => <View key={player.seat} style={styles.column} accessible accessibilityLabel={`${player.nickname}${player.bot ? ', bot' : ''}: ${player.score} pontos${state.winners.includes(player.seat) ? ', vencedor' : ''}`}>
         <View style={styles.plot}>
-          <View style={[styles.avatar, player.seat === state.you && styles.myAvatar]}><Text style={styles.initial}>{player.nickname.trim().slice(0, 1).toLocaleUpperCase('pt-PT') || '?'}</Text></View>
-          <Text testID={`score-value-${player.seat}`} style={styles.value}>{player.score}</Text>
-          <View style={[styles.bar, { height: Math.max(3, player.score / maximum * 132), backgroundColor: player.seat === state.you ? colors.gold : colors.green }]} />
+          <View style={{ position: 'absolute', left: 0, right: 0, top: baseline, borderTopWidth: 1, borderTopColor: colors.muted }} />
+          <View style={{ position: 'absolute', alignItems: 'center', top: baseline - Math.max(0, player.score) / range * 132 - 61, gap: 5 }}>
+            <View style={[styles.avatar, player.seat === state.you && styles.myAvatar]}><Text style={styles.initial}>{player.nickname.trim().slice(0, 1).toLocaleUpperCase('pt-PT') || '?'}</Text></View>
+            <Text testID={`score-value-${player.seat}`} style={styles.value}>{player.score}</Text>
+          </View>
+          <View style={[styles.bar, { position: 'absolute', top: baseline - Math.max(0, player.score) / range * 132, height: Math.max(3, Math.abs(player.score) / range * 132), backgroundColor: player.seat === state.you ? colors.gold : colors.green }]} />
         </View>
         <Text numberOfLines={2} style={styles.name}>{player.nickname}</Text>
         <Text style={styles.caption}>{state.winners.includes(player.seat) ? '★ Venceu' : player.seat === state.you ? 'Eu' : player.bot ? 'Bot' : 'Jogador'}</Text>
       </View>)}
     </View>
-    <Text style={styles.caption}>Pontos atuais · escala ajustada à maior pontuação</Text>
+    <Text style={styles.caption}>Pontos atuais · linha de zero · escala ajustada às pontuações</Text>
+    <CompetitionBoard state={state} />
   </View>;
 }
 

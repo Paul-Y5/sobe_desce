@@ -1,6 +1,6 @@
 # Remaining product and platform work
 
-The three user-requested phases are now implemented in separate local commits, following the playable baseline. This replaces the earlier planning-only document. The implementation deliberately keeps one Node service, one Expo application and the pure shared game engine.
+The three user-requested phases, complete Compose environment, score chart and [three game modes](game-modes.md) are now implemented in separate local commits, following the playable baseline. This replaces the earlier planning-only document. The implementation deliberately keeps one Node service, one Expo application and the pure shared game engine.
 
 | Delivered phase | Implementation and limits |
 |---|---|

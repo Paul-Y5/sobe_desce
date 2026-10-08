@@ -5,19 +5,21 @@ export type Rank = typeof RANKS[number];
 export type Card = { id: string; suit: Suit; rank: Rank };
 export type Phase = 'lobby' | 'trumpSelection' | 'participationExchange' | 'trickPlay' | 'handComplete' | 'matchComplete';
 export type Rules = Readonly<{
-  id: 'traditional-pt-v1';
+  id: 'traditional-pt-v1' | 'traditional-pt-v1-infinite';
   initialScore: number;
   exchangeLimit: number;
   compulsoryParticipationSuits: readonly Suit[];
   scoringMultipliers: Readonly<Record<Suit, number>>;
   mustOvertake: boolean;
   mustLeadTrumpAce: boolean;
-  zeroReachingPolicy: 'at-or-below-zero-shared';
+  zeroReachingPolicy: 'at-or-below-zero-shared' | 'unbounded';
 }>;
 export type Play = { seat: number; card: Card };
 export type Trick = { plays: Play[]; winner: number };
 export type GamePlayer = { hand: Card[]; score: number; tricks: number; participating: boolean | null };
+export type MatchFormat = Readonly<{ mode: 'base' | 'competitive' | 'infinite'; linesToWin: number }>;
 export type GameState = {
+  format: MatchFormat; gameNumber: number; gameWins: number[]; competitionWinners: number[];
   rulesetId: Rules['id']; rules: Rules; phase: Phase;
   dealer: number; chooser: number; turn: number | null; handNumber: number;
   trump: Suit | null; players: GamePlayer[]; deck: Card[]; discards: Card[];
@@ -25,19 +27,22 @@ export type GameState = {
   winners: number[]; scoreChanges: number[];
 };
 export type GameAction =
+  | { type: 'nextGame' }
+  | { type: 'finishInfinite'; confirmed: true }
   | { type: 'start' }
   | { type: 'chooseTrump'; suit: Suit }
   | { type: 'exchange'; cardIds: string[] }
   | { type: 'sitOut' }
   | { type: 'play'; cardId: string }
   | { type: 'nextHand' };
-export type RoomAction = GameAction | { type: 'restart'; confirmed: true } | { type: 'addBot'; seat: number } | { type: 'removeBot'; seat: number };
+export type RoomAction = GameAction | { type: 'restart'; confirmed: true } | { type: 'addBot'; seat: number } | { type: 'removeBot'; seat: number } | { type: 'setFormat'; format: MatchFormat };
 
 export type PublicPlayer = {
   seat: number; nickname: string; connected: boolean; inactive: boolean; score: number; bot: boolean;
   tricks: number; participating: boolean | null; cardCount: number;
 };
 export type Snapshot = {
+  format: MatchFormat; gameNumber: number; gameWins: number[]; competitionWinners: number[];
   roomCode: string; revision: number; you: number; creator: number;
   serverTime: number; turnDeadline: number | null; turnDisconnectAt: number | null;
   rulesetId: Rules['id']; rules: Rules; phase: Phase;

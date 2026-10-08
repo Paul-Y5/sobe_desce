@@ -1,4 +1,6 @@
-import type { Rules } from './types.js';
+import type { MatchFormat, Rules } from './types.js';
+
+export const BASE_FORMAT: MatchFormat = Object.freeze({ mode: 'base', linesToWin: 1 });
 
 export function freezeRules(rules: Rules): Rules {
   return Object.freeze({
@@ -14,3 +16,4 @@ export const TRADITIONAL_RULES = freezeRules({
   mustOvertake: true, mustLeadTrumpAce: true,
   zeroReachingPolicy: 'at-or-below-zero-shared',
 });
+export const INFINITE_RULES = freezeRules({ ...TRADITIONAL_RULES, id: 'traditional-pt-v1-infinite', zeroReachingPolicy: 'unbounded' });

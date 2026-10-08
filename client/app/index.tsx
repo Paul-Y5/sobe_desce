@@ -7,6 +7,7 @@ import { useGame } from '../src/GameContext';
 import { Button, colors, PlayingCard, s, suitNames, suitSymbols } from '../src/ui';
 import { OnboardingPrompt } from '../src/OnboardingPrompt';
 import { MotionEntry, useReducedMotion } from '../src/motion';
+import { FinishInfinite, ModeOptions, modeNames } from '../src/MatchModes';
 import { ScoreChart, ScoreChartControl } from '../src/ScoreChart';
 import { Chat } from '../src/Chat';
 import { TurnNotice } from '../src/TurnNotice';
@@ -62,6 +63,7 @@ function Lobby({ state }: { state: Snapshot }) {
   const count = state.players.filter(Boolean).length;
   const ready = state.players.every(p => p?.connected);
   return <>
+    <ModeOptions state={state} />
     <View style={[s.panel, { alignItems: 'center', paddingVertical: 32 }]}>
       <Text style={s.eyebrow}>A SUA MESA ESTÁ ABERTA</Text><Text style={s.heading}>Só falta a companhia.</Text>
       <Text style={s.body}>Partilhe este código com os seus amigos.</Text><Text selectable testID="room-code" style={styles.roomCode}>{state.roomCode}</Text>
@@ -75,7 +77,7 @@ function Lobby({ state }: { state: Snapshot }) {
       {state.you === state.creator && (!p || p.bot) && <Button secondary title={p?.bot ? `Retirar bot do lugar ${i + 1}` : `Adicionar bot ao lugar ${i + 1}`} disabled={busy || connection !== 'ready'} onPress={() => void act({ type: p?.bot ? 'removeBot' : 'addBot', seat: i })} />}
     </View>)}</View>
     {state.you === state.creator ? <Button title="Começar partida" disabled={!ready || busy || connection !== 'ready'} onPress={() => void act({ type: 'start' })} /> : <Text style={[s.body, { textAlign: 'center' }]}>A aguardar que o anfitrião comece a partida.</Text>}
-    <Text style={[s.body, { textAlign: 'center' }]}>Cada pessoa começa com 20 pontos. Ganha quem chegar a zero.</Text>
+    <Text style={[s.body, { textAlign: 'center' }]}>Cada pessoa começa com 20 pontos. {state.format.mode === 'infinite' ? 'Pode continuar abaixo de zero.' : state.format.mode === 'competitive' ? `A competição termina às ${state.format.linesToWin * 4} vitórias.` : 'Ganha quem chegar a zero.'}</Text>
     <Restart state={state} />
   </>;
 }
@@ -95,6 +97,8 @@ function Table({ state }: { state: Snapshot }) {
   const exchanging = state.phase === 'participationExchange';
   const finished = state.phase === 'handComplete' || state.phase === 'matchComplete';
   const label = state.phase === 'trumpSelection' ? 'Escolha do trunfo' : exchanging ? 'Participação e trocas' : finished ? 'Resultado da mão' : `Vaza ${state.completedTricks.length + 1} de 5`;
+  const competitive = state.format.mode === 'competitive';
+  const competitionComplete = state.competitionWinners.length > 0;
   const turnName = state.turn !== null ? state.players[state.turn]?.nickname : '';
   const relativeSeats = [2, 1, 3, 0].map(offset => (state.you + offset) % 4);
   const seat = (index: number) => <Seat player={state.players[index]!} active={state.turn === index} you={state.you === index} dealer={state.dealer === index} />;
@@ -102,7 +106,7 @@ function Table({ state }: { state: Snapshot }) {
   const showingLast = !state.trick.length && !!last;
   const displayedPlays = state.trick.length ? state.trick : last?.plays ?? [];
   return <>
-    <View style={s.header}><View><Text style={s.eyebrow}>SALA {state.roomCode} · MÃO {state.handNumber}</Text><Text style={s.heading}>{label}</Text></View><View style={styles.trumpBadge}><Text style={s.label}>{state.trump ? `${suitSymbols[state.trump]} ${suitNames[state.trump]}${state.trump === 'hearts' ? ' · Pontos ×2' : state.trump === 'clubs' ? ' · Todos jogam' : ''}` : 'Trunfo por escolher'}</Text></View></View>
+    <View style={s.header}><View><Text style={s.eyebrow}>SALA {state.roomCode} · {modeNames[state.format.mode]}{competitive ? ` · JOGO ${state.gameNumber}` : ''} · MÃO {state.handNumber}</Text><Text style={s.heading}>{label}</Text></View><View style={styles.trumpBadge}><Text style={s.label}>{state.trump ? `${suitSymbols[state.trump]} ${suitNames[state.trump]}${state.trump === 'hearts' ? ' · Pontos ×2' : state.trump === 'clubs' ? ' · Todos jogam' : ''}` : 'Trunfo por escolher'}</Text></View></View>
     <TurnNotice state={state} />
     {state.players.some(p => p && !p.connected) && <View style={s.notice}><Text style={s.body}>Há jogadores sem ligação. Os lugares estão reservados e nenhuma jogada é feita por eles. O anfitrião pode recomeçar a partida se não conseguirem voltar.</Text></View>}
     <View testID={`table-${state.revision}`} style={[styles.table, width < 600 && { padding: 12, borderRadius: 24 }]}>
@@ -130,11 +134,14 @@ function Table({ state }: { state: Snapshot }) {
       {state.phase === 'trickPlay' && <Text style={s.body}>{mine ? 'Toque numa carta com contorno verde para jogar. Deve assistir, cortar e subir quando possível.' : state.players[state.you]?.participating === false ? 'Acompanhe a mão. A sua pontuação mantém-se.' : `É a vez de ${turnName}.`}</Text>}
     </View>}
     {finished && <View style={s.panel}><ScoreChart state={state} /></View>}
-    {finished && <MotionEntry eventKey={`${state.handNumber}-${state.phase}`}><View style={s.panel}><Text style={s.heading}>{state.phase === 'matchComplete' ? state.winners.length > 1 ? 'Vitória partilhada!' : 'Temos vencedor!' : 'Mão concluída'}</Text>
-      {state.phase === 'matchComplete' && <Text style={s.body}>{state.winners.map(i => state.players[i]?.nickname).join(' e ')} {state.winners.length > 1 ? 'chegaram' : 'chegou'} a zero. Boa partida!</Text>}
+    {finished && <MotionEntry eventKey={`${state.handNumber}-${state.phase}`}><View style={s.panel}><Text style={s.heading}>{state.phase === 'matchComplete' ? competitive ? competitionComplete ? 'Competição concluída!' : 'Jogo concluído' : state.winners.length > 1 ? 'Vitória partilhada!' : 'Temos vencedor!' : 'Mão concluída'}</Text>
+      {state.phase === 'matchComplete' && <Text style={s.body}>{state.winners.map(i => state.players[i]?.nickname).join(' e ')} {state.format.mode === 'infinite' ? state.winners.length > 1 ? 'terminaram com a menor pontuação.' : 'terminou com a menor pontuação.' : state.winners.length > 1 ? 'chegaram a zero.' : 'chegou a zero.'}</Text>}
+      {competitionComplete && <Text style={s.label}>{state.competitionWinners.map(i => state.players[i]?.nickname).join(' e ')} {state.competitionWinners.length > 1 ? 'venceram a competição!' : 'venceu a competição!'}</Text>}
+      {competitive && state.phase === 'matchComplete' && !competitionComplete && (state.you === state.creator ? <Button title="Jogo seguinte" disabled={!enabled} onPress={() => void act({ type: 'nextGame' })} /> : <Text style={s.body}>A aguardar que o anfitrião inicie o jogo seguinte.</Text>)}
       {state.players.map((p, i) => <View key={i} style={[s.header, styles.scoreRow]}><Text style={s.label}>{p!.nickname}{state.winners.includes(i) ? ' ★' : ''}</Text><Text style={s.body}>{p!.participating ? `${p!.tricks} vazas` : 'Ficou de fora'} · {state.scoreChanges[i] > 0 ? '+' : ''}{state.scoreChanges[i]} → <Text style={s.label}>{p!.score} pontos</Text></Text></View>)}
       {state.phase === 'handComplete' && (state.you === state.creator ? <Button title="Próxima mão" disabled={!enabled} onPress={() => void act({ type: 'nextHand' })} /> : <Text style={s.body}>A aguardar que o anfitrião dê início à próxima mão.</Text>)}
     </View></MotionEntry>}
+    <FinishInfinite state={state} />
     {last && <View style={[s.panel, { padding: 16 }]}><Text style={s.label}>Última vaza · ganhou {state.players[last.winner]?.nickname}</Text><View style={s.row}>{last.plays.map(play => <View key={play.seat} style={{ alignItems: 'center', gap: 5 }}><PlayingCard card={play.card} small /><Text style={[s.body, { fontSize: 11 }]}>{state.players[play.seat]?.nickname}</Text></View>)}</View></View>}
     <Restart state={state} />
   </>;
@@ -145,9 +152,9 @@ function Restart({ state }: { state: Snapshot }) {
   const reduced = useReducedMotion();
   if (state.you !== state.creator) return null;
   if (state.phase === 'lobby' && !state.players.some(p => p && !p.connected)) return null;
-  return <><Button secondary title={state.phase === 'matchComplete' ? 'Nova partida' : 'Recomeçar partida'} disabled={busy || connection !== 'ready'} onPress={() => setConfirm(true)} />
+  return <><Button secondary title={state.format.mode === 'competitive' ? state.competitionWinners.length ? 'Nova competição' : 'Recomeçar competição' : state.phase === 'matchComplete' ? 'Nova partida' : 'Recomeçar partida'} disabled={busy || connection !== 'ready'} onPress={() => setConfirm(true)} />
     <Modal visible={confirm} transparent animationType={reduced ? 'none' : 'fade'} onRequestClose={() => setConfirm(false)}>
-      <View style={styles.backdrop}><View style={[s.panel, { width: '100%', maxWidth: 440 }]}><Text style={s.heading}>Recomeçar a partida?</Text><Text style={s.body}>A pontuação e as cartas serão apagadas. Todos voltam à sala de espera. Os lugares de quem está sem ligação ficam livres.</Text><Button title="Sim, recomeçar" onPress={() => { setConfirm(false); void act({ type: 'restart', confirmed: true }); }} /><Button secondary title="Continuar nesta partida" onPress={() => setConfirm(false)} /></View></View>
+      <View style={styles.backdrop}><View style={[s.panel, { width: '100%', maxWidth: 440 }]}><Text style={s.heading}>Recomeçar a partida?</Text><Text style={s.body}>As pontuações, vitórias da competição e cartas serão apagadas. Todos voltam à sala de espera. Os lugares de quem está sem ligação ficam livres.</Text><Button title="Sim, recomeçar" onPress={() => { setConfirm(false); void act({ type: 'restart', confirmed: true }); }} /><Button secondary title="Continuar nesta partida" onPress={() => setConfirm(false)} /></View></View>
     </Modal>
   </>;
 }

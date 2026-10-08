@@ -7,7 +7,7 @@ import type { ChatMessage, Command } from '../shared/contracts.js';
 import type { Metrics } from './metrics.js';
 import type { Accounts } from './accounts.js';
 import { applyAction, createDeck, createGame, GameError, legalCards } from '../shared/engine.js';
-import { SUITS, TRADITIONAL_RULES, type ClientEvents, type ServerEvents, type Snapshot, type GameState, type Session, type Reply } from '../shared/index.js';
+import { BASE_FORMAT, INFINITE_RULES, SUITS, TRADITIONAL_RULES, type MatchFormat, type ClientEvents, type ServerEvents, type Snapshot, type GameState, type Session, type Reply } from '../shared/index.js';
 
 const nickname = z.string().trim().min(1).max(24).refine(s => !/[\u0000-\u001f\u007f]/u.test(s));
 const roomCode = z.string().regex(/^[A-Z2-9]{6}$/);
@@ -17,6 +17,9 @@ const commandSchema = z.strictObject({
   requestId: z.string().min(8).max(100), expectedRevision: z.number().int().nonnegative(),
   action: z.discriminatedUnion('type', [
     z.strictObject({ type: z.literal('start') }),
+    z.strictObject({ type: z.literal('nextGame') }),
+    z.strictObject({ type: z.literal('finishInfinite'), confirmed: z.literal(true) }),
+    z.strictObject({ type: z.literal('setFormat'), format: z.strictObject({ mode: z.enum(['base', 'competitive', 'infinite']), linesToWin: z.number().int().min(1).max(10) }) }),
     z.strictObject({ type: z.literal('addBot'), seat: z.number().int().min(0).max(3) }),
     z.strictObject({ type: z.literal('removeBot'), seat: z.number().int().min(0).max(3) }),
     z.strictObject({ type: z.literal('chooseTrump'), suit: z.enum(SUITS) }),
@@ -30,6 +33,7 @@ const commandSchema = z.strictObject({
 const chatSchema = z.strictObject({ requestId: z.string().min(8).max(100), text: z.string().trim().min(1).max(500).refine(s => !/[\u0000-\u0008\u000b-\u001f\u007f]/u.test(s)) });
 const moderationSchema = z.strictObject({ requestId: z.string().min(8).max(100), seat: z.number().int().min(0).max(3), muted: z.boolean() });
 const messages: Record<string, string> = {
+  INVALID_FORMAT: 'Escolha um modo válido e entre uma e dez linhas no Competitivo.',
   ACCOUNT_REQUIRED: 'Entre na conta que reservou este lugar para regressar à partida.',
   CHAT_MUTED: 'O anfitrião silenciou as suas mensagens nesta sala.',
   INVALID_PAYLOAD: 'O pedido não é válido.', INVALID_ACTION: 'Esta ação não é válida.',
@@ -46,7 +50,7 @@ const messages: Record<string, string> = {
   INACTIVE_SESSION: 'Foi desligado por inatividade. Carregue em «Voltar à partida» para regressar.',
 };
 type Member = { nickname: string; token: string; socketId: string | null; requests: Set<string>; inactive: boolean; userId?: string; bot: boolean; chatRequests: Set<string>; chatTimes: number[] };
-type Room = { code: string; creator: number; revision: number; members: (Member | null)[]; game: GameState | null; lastActivity: number; turnDeadline: number | null; warned: boolean; cancelTimer?: () => void; cancelBot?: () => void; chatMessages: ChatMessage[]; mutedSeats: Set<number>; chatSequence: number };
+type Room = { format: MatchFormat; code: string; creator: number; revision: number; members: (Member | null)[]; game: GameState | null; lastActivity: number; turnDeadline: number | null; warned: boolean; cancelTimer?: () => void; cancelBot?: () => void; chatMessages: ChatMessage[]; mutedSeats: Set<number>; chatSequence: number };
 type Data = { session?: Session; seat?: number; userId?: string };
 type GameSocket = Socket<ClientEvents, ServerEvents, Record<string, never>, Data>;
 type Options = { botDelayMs?: number; metrics?: Metrics; accounts?: Accounts; origins?: string[]; rateLimit?: number; maxRooms?: number; roomTtlMs?: number; now?: () => number; schedule?: (run: () => void, delay: number) => () => void };
@@ -104,10 +108,11 @@ export function createServer(options: Options = {}) {
     const g = room.game;
     const hand = g?.players[seat].hand ?? [];
     return {
+      format: g?.format ?? room.format, gameNumber: g?.gameNumber ?? 1, gameWins: g?.gameWins ?? [0, 0, 0, 0], competitionWinners: g?.competitionWinners ?? [],
       roomCode: room.code, revision: room.revision, you: seat, creator: room.creator,
       serverTime: now(), turnDeadline: room.turnDeadline,
       turnDisconnectAt: room.turnDeadline === null ? null : room.turnDeadline + GRACE_DURATION_MS,
-      rulesetId: g?.rulesetId ?? TRADITIONAL_RULES.id, rules: g?.rules ?? TRADITIONAL_RULES,
+      rulesetId: g?.rulesetId ?? (room.format.mode === 'infinite' ? INFINITE_RULES.id : TRADITIONAL_RULES.id), rules: g?.rules ?? (room.format.mode === 'infinite' ? INFINITE_RULES : TRADITIONAL_RULES),
       phase: g?.phase ?? 'lobby', dealer: g?.dealer ?? 0, chooser: g?.chooser ?? 1,
       turn: g?.turn ?? null, handNumber: g?.handNumber ?? 0, trump: g?.trump ?? null,
       players: room.members.map((m, i) => m ? {
@@ -205,10 +210,14 @@ export function createServer(options: Options = {}) {
     if (member.requests.size >= 10000) throw new GameError('REQUEST_LIMIT');
     const action = command.action;
     const previousPhase = room.game?.phase;
-    if (['start', 'nextHand', 'restart', 'addBot', 'removeBot'].includes(action.type) && seat !== room.creator) throw new GameError('CREATOR_ONLY');
+    if (['start', 'nextHand', 'nextGame', 'finishInfinite', 'restart', 'addBot', 'removeBot', 'setFormat'].includes(action.type) && seat !== room.creator) throw new GameError('CREATOR_ONLY');
     // No await inside this handler: validation + pure transition + commit is atomic per room
     // on this single Node event loop. Never add asynchronous work inside this boundary.
-    if (action.type === 'addBot' || action.type === 'removeBot') {
+    if (action.type === 'setFormat') {
+      if (room.game) throw new GameError('WRONG_PHASE');
+      createGame(action.format.mode === 'infinite' ? INFINITE_RULES : TRADITIONAL_RULES, action.format);
+      room.format = Object.freeze({ ...action.format });
+    } else if (action.type === 'addBot' || action.type === 'removeBot') {
       if (room.game) throw new GameError('WRONG_PHASE');
       if (action.type === 'addBot') {
         if (room.members[action.seat]) throw new GameError('INVALID_ACTION');
@@ -223,13 +232,11 @@ export function createServer(options: Options = {}) {
       room.members = room.members.map(m => m?.socketId || m?.bot ? m : null);
     } else {
       if (action.type === 'start' && !room.members.every(m => m && (m.bot || m.socketId))) throw new GameError('NEED_FOUR');
-      room.game = applyAction(room.game ?? createGame(), seat, action,
-        action.type === 'start' || action.type === 'nextHand' ? shuffledDeck() : undefined);
+      room.game = applyAction(room.game ?? createGame(room.format.mode === 'infinite' ? INFINITE_RULES : TRADITIONAL_RULES, room.format), seat, action,
+        action.type === 'start' || action.type === 'nextHand' || action.type === 'nextGame' ? shuffledDeck() : undefined);
     }
-    if (room.game?.phase !== previousPhase && ['handComplete', 'matchComplete'].includes(room.game?.phase ?? '')) {
-      options.metrics?.event('hand_complete');
-      if (room.game?.phase === 'matchComplete') options.metrics?.event('match_complete');
-    }
+    if (previousPhase === 'trickPlay' && ['handComplete', 'matchComplete'].includes(room.game?.phase ?? '')) options.metrics?.event('hand_complete');
+    if (previousPhase !== 'matchComplete' && room.game?.phase === 'matchComplete') options.metrics?.event('match_complete');
     if (member.bot) member.requests.clear(); // Revision guards make older synthetic bot IDs unnecessary.
     member.requests.add(command.requestId);
     beginTurnTimer(room);
@@ -275,7 +282,7 @@ export function createServer(options: Options = {}) {
         let code: string;
         const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         do { code = Array.from({ length: 6 }, () => alphabet[randomInt(alphabet.length)]).join(''); } while (rooms.has(code));
-        room = { code, creator: 0, revision: 0, members: [null, null, null, null], game: null, lastActivity: now(), turnDeadline: null, warned: false, chatMessages: [], mutedSeats: new Set(), chatSequence: 0 };
+        room = { format: BASE_FORMAT, code, creator: 0, revision: 0, members: [null, null, null, null], game: null, lastActivity: now(), turnDeadline: null, warned: false, chatMessages: [], mutedSeats: new Set(), chatSequence: 0 };
         rooms.set(code, room);
       } else {
         const found = rooms.get(entry.roomCode ?? '');

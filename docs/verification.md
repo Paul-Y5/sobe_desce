@@ -1,5 +1,35 @@
 # MVP verification evidence
 
+## Current release — 2026-10-08
+
+The three requested phases are implemented: persistent optional accounts and audited administrator controls; protected metrics with Alloy, Prometheus and Grafana; room chat, creator moderation and explicit training bots. The full application has a versioned Compose deployment. The score chart uses nickname-initial avatars, works on demand and after hands, and supports negative values. Base, Competitive and Infinite are selectable in the lobby with immutable match settings; see [mode decisions](game-modes.md).
+
+Current verification supersedes the historical sections below:
+
+| Check | Result | Evidence |
+|---|---|---|
+| Strict TypeScript and server build | PASS | `npm run typecheck` and `npm run build:server` |
+| Engine/server integration | PASS | `npm run test:coverage`: **30 tests**, including real four-socket competitive completion, negative infinite scoring, shared victories, privacy, duplicate/stale commands, reconnection, account authorization, chat and bots |
+| Coverage | PASS | Configured engine/server modules: **90.14% statements, 84.39% branches, 96.72% functions, 97.27% lines**; all aggregate 80% thresholds pass. Not UI coverage. |
+| Production images and web build | PASS | Both application images built with `docker compose build`; the web image contains the Expo production export |
+| Browser through production Nginx | PASS | `PLAYWRIGHT_CHROMIUM_PATH=/usr/bin/chromium node deploy/smoke.mjs`: **6 browser tests** (1.4 minutes), including account reload, a full four-client match, 375px layout, tutorial, competitive continuation, infinite negative results, chat/moderation and bots |
+| Persistence and observability | PASS | Same isolated Compose smoke: account sign-in after server restart, private metrics excluded from public proxy, metric stored in Prometheus and provisioned dashboard available in Grafana |
+| Inactivity browser flow | PASS | Focused development test with controlled server clock: five-minute warning, one-minute grace, disconnection and explicit return (19.5 seconds including startup) |
+| Android/iOS JS exports | PASS | Expo exported both Hermes bundles after the mode changes; no claim of native runtime validation |
+| Native device/simulator | NOT RUN | No device, Android emulator or iOS simulator available |
+| Host-only observability smoke | NOT VERIFIED | The separate host-gateway setup did not complete; use the verified complete root Compose stack |
+| Dependency audit | MIXED | Server production audit: zero findings. Full workspace: 29 upstream Expo-tree findings (10 moderate, 19 high); incompatible force fixes were not applied. |
+
+Mode tests exercise real legal actions through successive hands/games. Competitive counts all shared game winners before checking the line target. Infinite preserves negative scores, rejects finishing during an active hand, and declares all tied minimum-score players as winners. Rejected control commands preserve the authoritative revision/state. Browser checks include cancelling the infinite finish confirmation and inspecting the signed score chart at phone width.
+
+Local Git history separates the baseline, accounts/admin, observability, chat/bots, deployment, chart and modes. No remote Git or image push, public hosting, load test, penetration test or app-store publishing was performed. Accounts persist in SQLite; rooms, seat sessions and chat remain in memory, so server restarts end matches. Avatars currently use initials, not uploaded photos. Accounts do not yet provide email verification, password recovery or MFA. The Compose stack has no public TLS ingress or notification destination for alerts.
+
+The final local stack was left running with application image tags and OCI version labels `b6106a3`. Port 8080 belonged to another application, so the ignored local `.env` uses `http://localhost:8081`; the repository example still defaults to 8080. All five services were running, web/server health checks passed, application routes returned HTTP 200, and the final stack's stored metric and authenticated Grafana dashboard were checked again. Grafana is at `http://localhost:3300`; its password remains only in local `.env`.
+
+## Historical evidence
+
+The sections below record earlier increments. Their counts, paths and statements about then-planned features are historical, not the current release status.
+
 ## Tutorial, motion and inactivity increment — 2026-10-07
 
 Added a remembered first-visit rules question, a six-step interactive visual tutorial, card/phase/result animation with reduced-motion support, and the user-requested inactivity policy: warn at five minutes, disconnect after one further minute, reserve the seat, require explicit return. The engine remains independent of clocks and transport. Accounts, administration, Alloy, chat and bots are planned only in `docs/next-phases.md`.

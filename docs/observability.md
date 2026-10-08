@@ -1,5 +1,7 @@
 # Local observability
 
+For the complete application, prefer the [root Compose deployment](deployment.md): the server and Alloy share a Docker network, and `node deploy/smoke.mjs` verifies the full metrics pipeline. The separate setup below is intended for a game server running directly on the host. Its host-gateway smoke did not complete in this environment; host firewall/routing access remains unverified. The root Compose pipeline passed independently.
+
 The server exposes Prometheus metrics only when `METRICS_TOKEN` is configured (at least 32 random characters). `/metrics` requires `Authorization: Bearer ...`; account sessions and administrator roles do not grant access. `/health` remains a minimal public liveness endpoint.
 
 1. Generate two independent secrets with `openssl rand -hex 32`.

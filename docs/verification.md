@@ -1,5 +1,13 @@
 # MVP verification evidence
 
+## Table readability and motion — 2026-10-08
+
+The user requested research-led improvements to cards, animations and important information on the table. [Research and decisions](table-ux.md) record npm/GitHub/documentation comparisons, sources and skipped channels. No dependencies or game rules changed.
+
+Test-first checkpoint `aa3aaef`: the four-browser journey failed because the persistent `game-hud` did not exist. After implementation, `PLAYWRIGHT_CHROMIUM_PATH=/usr/bin/chromium npm run test:browser` passed all **7 tests** (2.6 minutes). Added guarantees include a visible deadline/trump/score control after scrolling to chat, functional score modal during play, card targets at least 44px, and toggling animations. Existing tests cover complete matches, modes, private hands/reload, tutorial/reduced motion, inactivity, accounts, chat and bots. Desktop/375px screenshots were inspected; the review prompted narrower seat details and scrolling back to the board on each new deal.
+
+`npm run typecheck` and `git diff --check` passed. Android and iOS Hermes exports passed after the table changes. Exports do not establish native runtime behavior; physical-device and screen-reader testing remain unavailable. Server/engine coverage results below are previous evidence and were not rerun for this presentation-only change.
+
 ## Direct tutorial entry — 2026-10-08
 
 User journey: **Como jogar** opens the rules page with the existing animated tutorial immediately available. Complete written rules can be expanded below; onboarding uses the same page, and legacy `/tutorial` links redirect to `/rules`. Leaving the tutorial returns to the existing home/lobby route without duplicating it or losing the room.

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Snapshot } from '../../shared/index';
 import { Button, colors, s } from './ui';
 import { CompetitionBoard, modeNames } from './MatchModes';
@@ -33,10 +33,10 @@ export function ScoreChart({ state }: { state: Snapshot }) {
   </View>;
 }
 
-export function ScoreChartControl({ state }: { state: Snapshot }) {
+export function ScoreChartControl({ state, onTable = false }: { state: Snapshot; onTable?: boolean }) {
   const [open, setOpen] = useState(false);
   return <>
-    <Button secondary title="Ver pontuações" onPress={() => setOpen(true)} />
+    {onTable ? <Pressable accessibilityRole="button" accessibilityLabel="Ver pontuações" style={styles.tableButton} onPress={() => setOpen(true)}><Text style={{ color: colors.gold, fontSize: 18 }}>▥</Text><Text style={{ color: '#fffaf0', fontSize: 12, fontWeight: '700' }}>Pontuações</Text></Pressable> : <Button secondary title="Ver pontuações" onPress={() => setOpen(true)} />}
     <Modal visible={open} transparent animationType="none" onRequestClose={() => setOpen(false)}>
       <View style={styles.overlay}><View style={styles.dialog} accessibilityViewIsModal>
         <ScrollView contentContainerStyle={{ padding: 18, gap: 18 }}><ScoreChart state={state} /><Button title="Voltar à mesa" onPress={() => setOpen(false)} /></ScrollView>
@@ -46,6 +46,7 @@ export function ScoreChartControl({ state }: { state: Snapshot }) {
 }
 
 const styles = StyleSheet.create({
+  tableButton: { minHeight: 48, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: '#708375', backgroundColor: '#294d3e', flexDirection: 'row', alignItems: 'center', gap: 6 },
   chart: { gap: 12, width: '100%' },
   columns: { flexDirection: 'row', gap: 8, alignItems: 'flex-end', paddingTop: 8 },
   column: { flex: 1, minWidth: 0, alignItems: 'center', gap: 6 },

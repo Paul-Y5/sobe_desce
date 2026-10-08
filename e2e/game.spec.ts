@@ -30,6 +30,9 @@ test('four browsers play a complete match, reload a seat, and restart', async ({
     await pages[3].getByRole('button', { name: 'Ver pontuações', exact: true }).click();
     await expect(pages[3].getByTestId('score-value-3')).toHaveText('20');
     await pages[3].getByRole('button', { name: 'Voltar à mesa', exact: true }).click();
+    await pages[3].getByRole('button', { name: 'Desativar animações', exact: true }).click();
+    await expect(pages[3].getByRole('button', { name: 'Ativar animações', exact: true })).toBeVisible();
+    await pages[3].getByRole('button', { name: 'Ativar animações', exact: true }).click();
     await pages[3].getByText('A sua mão', { exact: true }).scrollIntoViewIfNeeded();
     for (const card of await pages[3].locator('[data-testid^="card-"]').all()) {
       const bounds = await card.boundingBox();

@@ -39,6 +39,8 @@ On first visit, choose whether to open the six-step visual tutorial. **Como joga
 
 Each trump choice, participation/exchange decision and card play has **five minutes**, followed by a warning and **one minute of grace**. The server then disconnects the inactive player, preserving their seat/cards/scores. Select **Voltar à partida** to return with five fresh minutes; reloading or automatic reconnection does not bypass inactivity. There is no automatic card play, point penalty or bot takeover. Until return, the table waits at that seat or the creator can confirm a restart.
 
+During play, the fixed table header keeps trump, current actor, time remaining and **Pontuações** visible while scrolling. Cards show mirrored indices, legal-play marks and lifted exchange selections; brief animations follow dealing and seat directions. **Animações: sim/não** below the table controls motion for the current session; device reduced-motion settings take precedence. See [card-table UX research and decisions](docs/table-ux.md).
+
 The default server is `http://localhost:3001`; `/health` returns a small health response. `client/.env` sets `EXPO_PUBLIC_SERVER_URL`, which is public and embedded at build time. Never put secrets in an `EXPO_PUBLIC_*` variable. Restart Expo after changing it.
 
 ### Phones on the local network

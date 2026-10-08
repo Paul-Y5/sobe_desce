@@ -80,11 +80,22 @@ test('narrow touch viewport: entry, rules and lobby fit', async ({ browser }, te
     await expect(page.getByLabel('O seu nome', { exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('mobile-home.png'), fullPage: true });
     await page.getByRole('link', { name: 'Como jogar ↗' }).click();
+    await expect(page).toHaveURL(/\/rules$/);
     await expect(page.getByText('As regras da nossa mesa.')).toBeVisible();
+    await expect(page.getByText('Ganhar é chegar a zero.', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Ganhar 3 vazas', exact: true }).click();
+    await expect(page.getByTestId('tutorial-score')).toHaveText('17');
+    await page.getByRole('button', { name: 'Consultar regras completas', exact: true }).click();
+    await expect(page.getByText('Três modos de jogo', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.goto('/');
     await page.getByLabel('O seu nome', { exact: true }).fill('Leonor');
     await page.getByRole('button', { name: 'Criar sala', exact: true }).click();
     await expect(page.getByTestId('room-code')).toBeVisible();
+    const code = await page.getByTestId('room-code').innerText();
+    await page.getByRole('link', { name: 'Como jogar ↗' }).click();
+    await page.getByRole('button', { name: 'Sair do tutorial', exact: true }).click();
+    await expect(page.getByTestId('room-code')).toHaveText(code);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   } finally { await context.close(); }
 });
@@ -96,6 +107,7 @@ test('visual tutorial teaches with practice, remembers the answer and supports r
     await page.goto('/');
     await expect(page.getByText('Já sabe jogar Sobe e Desce?', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Quero aprender', exact: true }).click();
+    await expect(page).toHaveURL(/\/rules$/);
     await expect(page.getByText('Ganhar é chegar a zero.', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Ganhar 3 vazas', exact: true }).click();
     await expect(page.getByTestId('tutorial-score')).toHaveText('17');
@@ -121,7 +133,11 @@ test('visual tutorial teaches with practice, remembers the answer and supports r
     await expect(page.getByLabel('O seu nome', { exact: true })).toBeVisible();
     await expect(page.getByText('Já sabe jogar Sobe e Desce?', { exact: true })).toHaveCount(0);
     await page.getByRole('link', { name: 'Como jogar ↗' }).click();
-    await page.getByRole('link', { name: 'Abrir tutorial visual', exact: true }).click();
+    await expect(page).toHaveURL(/\/rules$/);
+    await expect(page.getByText('Ganhar é chegar a zero.', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('tutorial-score')).toHaveText('20');
+    await page.goto('/tutorial');
+    await expect(page).toHaveURL(/\/rules$/);
     await expect(page.getByText('Ganhar é chegar a zero.', { exact: true })).toBeVisible();
   } finally { await context.close(); }
 });

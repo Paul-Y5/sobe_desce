@@ -1,6 +1,7 @@
 import { ScrollView, Text, View } from 'react-native';
-import { s } from '../src/ui';
-import { Link } from 'expo-router';
+import { Button, s } from '../src/ui';
+import { useState } from 'react';
+import Tutorial from '../src/Tutorial';
 
 const sections = [
   ['Uma variante para esta mesa', 'Jogamos a variante traditional-pt-v1. Há outras formas de jogar Sobe e Desce em Portugal; estas são as regras escolhidas para esta aplicação. São quatro jogadores, cada um por si, e todos começam com 20 pontos. No modo Base, ganha quem chegar a zero ou menos. O anfitrião escolhe o modo antes de começar.'],
@@ -16,5 +17,6 @@ const sections = [
   ['Se a ligação falhar', 'O seu lugar fica reservado e a aplicação tenta voltar à mesa. Não jogamos por si nem alteramos a sua participação. No navegador, a sessão fica guardada neste separador; no telemóvel, fica guardada na aplicação. Se alguém não conseguir voltar, o anfitrião pode confirmar um reinício: apagam-se as pontuações e libertam-se os lugares desligados. Se o servidor reiniciar, as salas e as partidas terminam.'],
 ];
 export default function Rules() {
-  return <ScrollView contentContainerStyle={s.page}><Text style={s.eyebrow}>TRADITIONAL-PT-V1</Text><Text style={s.heading}>As regras da nossa mesa.</Text><Link href="/tutorial" style={[s.label, { paddingVertical: 16 }]}>Abrir tutorial visual</Link><View style={s.panel}><Text style={s.label}>Tempo para decidir</Text><Text style={s.body}>Tem cinco minutos para escolher o trunfo, decidir a troca ou jogar uma carta. Ao fim desse tempo recebe um aviso e tem mais um minuto. Depois é desligado por inatividade, com o lugar e as cartas reservados. Carregue em «Voltar à partida» para regressar com um novo prazo. Uma reconexão normal não reinicia a contagem. Não há jogadas automáticas nem penalizações de pontos.</Text></View>{sections.map(([title, body]) => <View key={title} style={s.panel}><Text style={s.label}>{title}</Text><Text style={s.body}>{body}</Text></View>)}</ScrollView>;
+  const [showRules, setShowRules] = useState(false);
+  return <ScrollView contentContainerStyle={[s.page, { maxWidth: 800 }]}><Text style={s.eyebrow}>TRADITIONAL-PT-V1</Text><Text style={s.heading}>As regras da nossa mesa.</Text><Tutorial /><Button secondary title={showRules ? 'Ocultar regras completas' : 'Consultar regras completas'} onPress={() => setShowRules(!showRules)} />{showRules && <><View style={s.panel}><Text style={s.label}>Tempo para decidir</Text><Text style={s.body}>Tem cinco minutos para escolher o trunfo, decidir a troca ou jogar uma carta. Ao fim desse tempo recebe um aviso e tem mais um minuto. Depois é desligado por inatividade, com o lugar e as cartas reservados. Carregue em «Voltar à partida» para regressar com um novo prazo. Uma reconexão normal não reinicia a contagem. Não há jogadas automáticas nem penalizações de pontos.</Text></View>{sections.map(([title, body]) => <View key={title} style={s.panel}><Text style={s.label}>{title}</Text><Text style={s.body}>{body}</Text></View>)}</>}</ScrollView>;
 }

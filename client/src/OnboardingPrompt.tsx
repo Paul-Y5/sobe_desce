@@ -17,7 +17,7 @@ export function OnboardingPrompt({ eligible }: { eligible: boolean }) {
   function answer(learn: boolean) {
     setShow(false);
     void rememberTutorialAnswer().catch(() => {}); // Preference only; storage failure must not block entry.
-    if (learn) router.push('/tutorial');
+    if (learn) router.push('/rules');
   }
   return <Modal visible={eligible && show} transparent animationType={reduced ? 'none' : 'fade'} onRequestClose={() => answer(false)}>
     <View style={styles.backdrop}><View style={styles.dialog}><ScrollView contentContainerStyle={{ padding: 24, gap: 20 }}>

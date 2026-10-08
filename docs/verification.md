@@ -1,5 +1,11 @@
 # MVP verification evidence
 
+## Direct tutorial entry — 2026-10-08
+
+User journey: **Como jogar** opens the rules page with the existing animated tutorial immediately available. Complete written rules can be expanded below; onboarding uses the same page, and legacy `/tutorial` links redirect to `/rules`. Leaving the tutorial returns to the existing home/lobby route without duplicating it or losing the room.
+
+Test-first evidence: `PLAYWRIGHT_CHROMIUM_PATH=/usr/bin/chromium npm run test:browser -- --grep 'narrow touch|visual tutorial'` initially failed both journeys because the rules page lacked the tutorial and onboarding still navigated to `/tutorial` (checkpoint `5362bf4`). After extraction into a shared React Native component, the return-to-lobby test exposed duplicate home routes; using `dismissTo('/')` fixed that navigation. The same two tests then passed in 6.9 seconds, covering 375px layout, normal/reduced motion preferences, complete tutorial practice, remembered onboarding, direct legacy links and preserved lobby membership. `npm run typecheck` and `git diff --check` passed. No engine behavior changed; native device testing remains unavailable.
+
 ## Current release — 2026-10-08
 
 The three requested phases are implemented: persistent optional accounts and audited administrator controls; protected metrics with Alloy, Prometheus and Grafana; room chat, creator moderation and explicit training bots. The full application has a versioned Compose deployment. The score chart uses nickname-initial avatars, works on demand and after hands, and supports negative values. Base, Competitive and Infinite are selectable in the lobby with immutable match settings; see [mode decisions](game-modes.md).

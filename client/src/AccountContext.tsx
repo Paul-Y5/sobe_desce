@@ -1,8 +1,9 @@
+import { serverURL } from './serverUrl';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { readAccountToken, storeAccountToken } from './accountStorage';
 
 type User = { id: string; name: string; email: string; role: string };
-const baseURL = process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:3001';
+const baseURL = serverURL;
 type Context = { user: User | null; generation: number; ready: boolean; request: (path: string, body?: unknown) => Promise<any>; refresh: () => Promise<void>; signOut: () => Promise<void> };
 const Context = createContext<Context | null>(null);
 export function AccountProvider({ children }: { children: ReactNode }) {

@@ -8,7 +8,7 @@ import { bearer } from 'better-auth/plugins';
 import { fromNodeHeaders } from 'better-auth/node';
 import { z } from 'zod';
 
-type Options = { databasePath: string; secret: string; baseURL: string; origins: string[] };
+type Options = { trustProxy?: boolean; databasePath: string; secret: string; baseURL: string; origins: string[] };
 export type AccountUser = { id: string; name: string; email: string; role: string };
 export type Accounts = Awaited<ReturnType<typeof createAccounts>>;
 
@@ -59,8 +59,8 @@ export async function createAccounts(options: Options) {
       const chunks: Buffer[] = []; let size = 0;
       for await (const chunk of req) { size += chunk.length; if (size > 8192) { json(res, 413, { error: 'Pedido demasiado grande.' }); return true; } chunks.push(chunk); }
       const headers = fromNodeHeaders(req.headers); headers.delete('content-length');
-      // This header is overwritten from the TCP peer, never trusted from the request.
-      headers.set('x-sobe-client-ip', req.socket.remoteAddress ?? 'unknown');
+      // Trust only the private deployment proxy when explicitly configured; otherwise use the TCP peer.
+      headers.set('x-sobe-client-ip', options.trustProxy && typeof req.headers['x-real-ip'] === 'string' ? req.headers['x-real-ip'] : req.socket.remoteAddress ?? 'unknown');
       const response = await auth.handler(new Request(new URL(path, options.baseURL), { method: 'POST', headers, body: Buffer.concat(chunks).toString() }));
       response.headers.forEach((value, key) => { if (key !== 'set-cookie') res.setHeader(key, value); });
       const cookies = response.headers.getSetCookie(); if (cookies.length) res.setHeader('set-cookie', cookies);

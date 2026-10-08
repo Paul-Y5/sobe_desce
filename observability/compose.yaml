@@ -1,6 +1,7 @@
 services:
   alloy:
     image: grafana/alloy:v1.20.1
+    user: alloy
     command: [run, --server.http.listen-addr=0.0.0.0:12345, --storage.path=/var/lib/alloy/data, /etc/alloy/config.alloy]
     environment:
       METRICS_TOKEN: ${METRICS_TOKEN:?Set the same METRICS_TOKEN as the game server}
@@ -31,6 +32,7 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
     volumes:
       - ./provisioning:/etc/grafana/provisioning:ro
       - ./dashboards:/var/lib/grafana/dashboards:ro

@@ -16,5 +16,5 @@ export async function configuredAccounts(origins: string[]) {
       secret = randomBytes(48).toString('base64url'); writeFileSync(path, secret, { mode: 0o600, flag: 'wx' });
     }
   }
-  return createAccounts({ databasePath, secret, baseURL: process.env.AUTH_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3001}`, origins });
+  return createAccounts({ trustProxy: process.env.TRUST_PROXY === 'true', databasePath, secret, baseURL: process.env.AUTH_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3001}`, origins });
 }

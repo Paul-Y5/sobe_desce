@@ -1,3 +1,4 @@
+import { serverURL } from './serverUrl';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type { ChatState, ClientEvents, Reply, RoomAction, ServerEvents, Session, Snapshot } from '../../shared/index';
@@ -33,7 +34,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (!account.ready) return;
     setSnapshot(null); setChat({ messages: [], mutedSeats: [] });
     let disposed = false;
-    const s: GameSocket = io(process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:3001', { autoConnect: false, withCredentials: true, auth: callback => { void readAccountToken().then(accountToken => callback({ accountToken })).catch(() => callback({})); } });
+    const s: GameSocket = io(serverURL, { autoConnect: false, withCredentials: true, auth: callback => { void readAccountToken().then(accountToken => callback({ accountToken })).catch(() => callback({})); } });
     socket.current = s;
     s.on('chatState', setChat);
     s.on('snapshot', next => {

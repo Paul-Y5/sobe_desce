@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/dist-native
+**/.expo
+**/.env
+**/.env.*
+**/data
+**/*.sqlite*
+**/*.log
+.git
+.agents
+.codex
+coverage
+test-results
+playwright-report

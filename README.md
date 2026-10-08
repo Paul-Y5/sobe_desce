@@ -2,6 +2,15 @@
 
 A playable four-seat implementation with guest entry, optional accounts, room chat and training bots of **traditional-pt-v1**, built with Expo, React Native, TypeScript and Socket.IO. The same screens run on web, Android and iOS. All game-facing copy is European Portuguese. These are this product's variant rules, not a claim that Portugal has one official ruleset.
 
+## Complete environment with Docker Compose
+
+```sh
+node deploy/init-env.mjs
+docker compose up -d --build --wait
+```
+
+Open the application at `http://localhost:8080` and Grafana at `http://localhost:3300`. The setup script creates private random secrets in root `.env` and never overwrites an existing configuration. Review `PUBLIC_ORIGIN` and `APP_VERSION` for deployment. See [deployment, persistence, versioning and rollback](docs/deployment.md). The stack includes web, server, SQLite account storage, Alloy, Prometheus and Grafana. No remote publishing is performed.
+
 ## Run locally
 
 Use **Node 24 LTS** (see `.nvmrc`) and npm. Install from the repository root:
@@ -52,7 +61,7 @@ Native credentials use Expo SecureStore. Web seat credentials use per-tab sessio
 | `npm run test:coverage` | Coverage; 80% engine/server thresholds |
 | `npm run typecheck` | Strict TypeScript across server/shared and client |
 | `npm run build:web` | Export web files into `client/dist` |
-| `npm run build:server` | Compile server/shared into root `dist` |
+| `npm run build:server` | Compile server/shared into `server/dist` |
 | `npm run start -w server` | Run the compiled server |
 | `npm run test:browser` | Playwright: full match, tutorial, inactivity, accounts, chat/bots and narrow touch view |
 | `npm run admin:promote -w server -- email` | Grant an existing account administrator access locally |

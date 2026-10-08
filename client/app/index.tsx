@@ -7,6 +7,7 @@ import { useGame } from '../src/GameContext';
 import { Button, colors, PlayingCard, s, suitNames, suitSymbols } from '../src/ui';
 import { OnboardingPrompt } from '../src/OnboardingPrompt';
 import { MotionEntry, useReducedMotion } from '../src/motion';
+import { ScoreChart, ScoreChartControl } from '../src/ScoreChart';
 import { Chat } from '../src/Chat';
 import { TurnNotice } from '../src/TurnNotice';
 
@@ -22,6 +23,7 @@ export default function Home() {
     </View>
     {game.connection !== 'ready' && <View style={s.notice}><Text style={s.label} accessibilityLiveRegion="polite">{game.connection === 'connecting' ? 'A ligar ao servidor…' : game.connection === 'replaced' ? 'Sessão aberta noutra ligação' : game.connection === 'inactive' ? 'Desligado por inatividade · lugar reservado' : 'A restabelecer ligação… O seu lugar está reservado.'}</Text>{game.connection === 'replaced' && <Button title="Voltar ao início" onPress={game.reset} />}{game.connection === 'inactive' && <Button title="Voltar à partida" onPress={game.returnToGame} />}</View>}
     {!!game.error && <View style={s.notice}><Text accessibilityRole="alert" style={s.body}>{game.error}</Text><Button secondary title="Fechar aviso" onPress={game.dismissError} /></View>}
+    {game.snapshot && <ScoreChartControl state={game.snapshot} />}
     {game.snapshot ? game.snapshot.phase === 'lobby' ? <Lobby state={game.snapshot} /> : <Table state={game.snapshot} /> : <Entry />}
     {game.snapshot && <Chat />}
     <Text style={[s.body, { fontSize: 12, textAlign: 'center' }]}>Quatro pessoas. Quarenta cartas. Um lugar à mesa.</Text>
@@ -127,6 +129,7 @@ function Table({ state }: { state: Snapshot }) {
       {exchanging && (mine ? <><Text style={s.body}>Toque nas cartas que quer trocar (até {state.rules.exchangeLimit}). Pode participar sem trocar cartas.</Text><View style={s.row}><Button title={selected.length ? `Participar e trocar ${selected.length}` : 'Participar sem trocar'} disabled={!enabled} onPress={() => void act({ type: 'exchange', cardIds: selected })} />{state.canSitOut && <Button secondary title="Ficar de fora" disabled={!enabled} onPress={() => void act({ type: 'sitOut' })} />}</View>{!state.canSitOut && <Text style={s.body}>{state.trump === 'clubs' ? 'Com paus, todos têm de participar.' : 'Quem escolhe o trunfo tem de participar.'}</Text>}</> : <Text style={s.body}>A aguardar a decisão de {turnName}.</Text>)}
       {state.phase === 'trickPlay' && <Text style={s.body}>{mine ? 'Toque numa carta com contorno verde para jogar. Deve assistir, cortar e subir quando possível.' : state.players[state.you]?.participating === false ? 'Acompanhe a mão. A sua pontuação mantém-se.' : `É a vez de ${turnName}.`}</Text>}
     </View>}
+    {finished && <View style={s.panel}><ScoreChart state={state} /></View>}
     {finished && <MotionEntry eventKey={`${state.handNumber}-${state.phase}`}><View style={s.panel}><Text style={s.heading}>{state.phase === 'matchComplete' ? state.winners.length > 1 ? 'Vitória partilhada!' : 'Temos vencedor!' : 'Mão concluída'}</Text>
       {state.phase === 'matchComplete' && <Text style={s.body}>{state.winners.map(i => state.players[i]?.nickname).join(' e ')} {state.winners.length > 1 ? 'chegaram' : 'chegou'} a zero. Boa partida!</Text>}
       {state.players.map((p, i) => <View key={i} style={[s.header, styles.scoreRow]}><Text style={s.label}>{p!.nickname}{state.winners.includes(i) ? ' ★' : ''}</Text><Text style={s.body}>{p!.participating ? `${p!.tricks} vazas` : 'Ficou de fora'} · {state.scoreChanges[i] > 0 ? '+' : ''}{state.scoreChanges[i]} → <Text style={s.label}>{p!.score} pontos</Text></Text></View>)}

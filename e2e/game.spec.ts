@@ -18,7 +18,24 @@ test('four browsers play a complete match, reload a seat, and restart', async ({
       await page.getByRole('button', { name: 'Entrar na sala', exact: true }).click();
     }
     await pages[0].getByRole('button', { name: 'Começar partida', exact: true }).click();
+    await expect(pages[3].getByTestId('game-hud')).toBeInViewport();
+    await expect(pages[3].getByTestId('turn-timer')).toHaveText(/^0[45]:\d{2}$/);
     await pages[1].getByRole('button', { name: '♥ Copas', exact: true }).click();
+    await expect(pages[3].getByTestId('trump-indicator')).toContainText('Copas');
+    await expect(pages[3].getByTestId('trump-indicator')).toContainText('×2');
+    await pages[3].getByRole('button', { name: /^Conversa da sala/ }).scrollIntoViewIfNeeded();
+    await expect(pages[3].getByTestId('turn-timer')).toBeInViewport();
+    await expect(pages[3].getByTestId('trump-indicator')).toBeInViewport();
+    await expect(pages[3].getByRole('button', { name: 'Ver pontuações', exact: true })).toBeInViewport();
+    await pages[3].getByRole('button', { name: 'Ver pontuações', exact: true }).click();
+    await expect(pages[3].getByTestId('score-value-3')).toHaveText('20');
+    await pages[3].getByRole('button', { name: 'Voltar à mesa', exact: true }).click();
+    await pages[3].getByText('A sua mão', { exact: true }).scrollIntoViewIfNeeded();
+    for (const card of await pages[3].locator('[data-testid^="card-"]').all()) {
+      const bounds = await card.boundingBox();
+      expect(bounds!.width).toBeGreaterThanOrEqual(44);
+      expect(bounds!.height).toBeGreaterThanOrEqual(44);
+    }
     await expect(pages[3].getByText('A sua mão', { exact: true })).toBeVisible();
     expect(await pages[3].evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await pages[3].screenshot({ path: testInfo.outputPath('mobile-table.png'), fullPage: true });

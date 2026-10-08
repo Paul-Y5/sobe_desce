@@ -8,6 +8,8 @@ Test-first checkpoint `aa3aaef`: the four-browser journey failed because the per
 
 `npm run typecheck` and `git diff --check` passed. Android and iOS Hermes exports passed after the table changes. Exports do not establish native runtime behavior; physical-device and screen-reader testing remain unavailable. Server/engine coverage results below are previous evidence and were not rerun for this presentation-only change.
 
+The production Compose build also passed. A four-browser smoke played a complete trick and checked the fixed timer, trump, score modal and absence of horizontal overflow at 320, 375 and 1280px. Screenshots of the played trick were inspected; the winner caption was moved away from the top seat after detecting an overlap. Only the web container was replaced; the existing multiplayer server remained running.
+
 ## Direct tutorial entry — 2026-10-08
 
 User journey: **Como jogar** opens the rules page with the existing animated tutorial immediately available. Complete written rules can be expanded below; onboarding uses the same page, and legacy `/tutorial` links redirect to `/rules`. Leaving the tutorial returns to the existing home/lobby route without duplicating it or losing the room.

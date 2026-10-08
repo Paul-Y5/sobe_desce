@@ -61,7 +61,7 @@ export function TableArena({ state }: { state: Snapshot }) {
       })}</View> : <View style={styles.emptyTrick}><Text style={styles.tableSymbol}>{state.trump ? suitSymbols[state.trump] : '♣'}</Text><Text style={styles.tableHint}>{state.phase === 'trumpSelection' ? 'Escolha do trunfo' : state.phase === 'participationExchange' ? 'Prepare a sua mão' : 'A vaza começa aqui'}</Text></View>}
     </View>
     <View style={styles.trickStatus}><Text style={styles.trickCount}>{finished ? '5 / 5 VAZAS' : `${Math.min(5, state.completedTricks.length + 1)} / 5 VAZAS`}</Text><Text style={styles.turnLabel}>{finished ? 'Mão terminada' : mine ? 'É a sua vez' : `A aguardar ${state.turn === null ? 'a mesa' : state.players[state.turn]?.nickname}`}</Text></View>
-    {showingLast && <View style={styles.trickWinner}><MotionEntry eventKey={`${state.gameNumber}-${state.handNumber}-${last!.winner}-${state.completedTricks.length}`}><Text accessibilityLiveRegion="polite" style={styles.winnerText}>★ Vaza para {state.players[last!.winner]?.nickname}</Text></MotionEntry></View>}
+    {showingLast && <View style={styles.trickWinner}><MotionEntry eventKey={`${state.gameNumber}-${state.handNumber}-${last!.winner}-${state.completedTricks.length}`}><Text style={styles.winnerText}>★ Vaza ganha</Text><Text numberOfLines={1} accessibilityLiveRegion="polite" style={styles.winnerText}>{state.players[last!.winner]?.nickname}</Text></MotionEntry></View>}
   </View>;
 }
 
@@ -110,8 +110,8 @@ const styles = StyleSheet.create({
   trickStatus: { position: 'absolute', bottom: 6, left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   trickCount: { color: '#d4e3d3', fontSize: 10, fontWeight: '700', letterSpacing: 1 },
   turnLabel: { color: '#fff2c6', fontSize: 12, fontWeight: '700', flexShrink: 1 },
-  trickWinner: { position: 'absolute', top: 77, left: 8, right: 8, alignItems: 'center' },
-  winnerText: { color: colors.gold, fontSize: 11, fontWeight: '700' },
+  trickWinner: { position: 'absolute', top: 87, left: 8, width: 76 },
+  winnerText: { color: colors.gold, fontSize: 10, lineHeight: 13, fontWeight: '700' },
   tools: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between', gap: 4 },
   tool: { minHeight: 44, paddingHorizontal: 10, justifyContent: 'center' },
   toolLabel: { color: colors.green, fontSize: 12, fontWeight: '700' },

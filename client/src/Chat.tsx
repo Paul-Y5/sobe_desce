@@ -15,12 +15,12 @@ export function Chat() {
     catch (e) { setError(e instanceof Error && !/(timeout|timed out)/i.test(e.message) ? e.message : 'Sem confirmação. A mensagem pode ter sido enviada; confirme no histórico antes de repetir.'); }
     finally { setBusy(false); }
   }
-  return <View style={s.panel}><Button secondary title={open ? 'Fechar conversa' : `Conversa da sala (${game.chat.messages.length})`} onPress={() => setOpen(v => !v)} />
+  return <View style={s.panel}><Button secondary expanded={open} title={open ? 'Fechar conversa' : `Conversa da sala (${game.chat.messages.length})`} onPress={() => setOpen(v => !v)} />
     {open && <>
-      <Text style={s.body}>Só os participantes desta sala veem as mensagens. Não partilhe as suas cartas. Guardamos as últimas 50 mensagens até recomeçar a partida.</Text>
+      <Text style={s.small}>Só os participantes desta sala veem as mensagens. Não partilhe as suas cartas. Guardamos as últimas 50 mensagens até recomeçar a partida.</Text>
       <ScrollView style={{ maxHeight: 280 }} contentContainerStyle={{ gap: 12, paddingVertical: 8 }} nestedScrollEnabled>
         {game.chat.messages.length === 0 && <Text style={s.body}>Diga olá à mesa.</Text>}
-        {game.chat.messages.map(message => <View key={message.id}><Text style={s.label}>{message.nickname}{message.seat === state.you ? ' (eu)' : ''}</Text><Text selectable style={s.body}>{message.text}</Text></View>)}
+        <View accessibilityLiveRegion="polite" style={{ gap: 12 }}>{game.chat.messages.map(message => <View key={message.id}><Text style={s.label}>{message.nickname}{message.seat === state.you ? ' (eu)' : ''}</Text><Text selectable style={s.body}>{message.text}</Text></View>)}</View>
       </ScrollView>
       {!!error && <Text accessibilityRole="alert" style={s.body}>{error}</Text>}
       {muted ? <Text style={s.body}>O anfitrião silenciou as suas mensagens nesta sala.</Text> : <>

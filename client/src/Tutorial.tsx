@@ -4,7 +4,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { RANKS, SUITS, type Card, type Suit } from '../../shared/index';
 import { MotionEntry } from './motion';
 import { rememberTutorialAnswer } from './preferences';
-import { Button, colors, PlayingCard, s, suitNames, suitSymbols } from './ui';
+import { color } from './tokens';
+import { Button, Heading, PlayingCard, s, suitNames, suitSymbols } from './ui';
 
 const card = (suit: Suit, rank: Card['rank']): Card => ({ id: `${suit}-${rank}`, suit, rank });
 const exampleHand = [card('clubs', '6'), card('hearts', '7'), card('spades', 'A'), card('diamonds', 'K'), card('clubs', '2')];
@@ -29,8 +30,8 @@ export default function Tutorial() {
   }
   return <View style={{ gap: 20 }}>
     <View style={s.header}><Text style={s.eyebrow}>PASSO {step + 1} DE 6 · {labels[step].toUpperCase()}</Text><Button secondary title="Sair do tutorial" onPress={leave} /></View>
-    <View style={styles.progress}>{labels.map((label, i) => <View key={label} accessibilityLabel={`Passo ${i + 1}: ${label}`} style={[styles.segment, i <= step && { backgroundColor: colors.green }]} />)}</View>
-    <Text style={s.heading}>{titles[step]}</Text>
+    <View accessibilityElementsHidden aria-hidden style={styles.progress}>{labels.map((label, i) => <View key={label} style={[styles.segment, i <= step && { backgroundColor: color.green }]} />)}</View>
+    <Heading>{titles[step]}</Heading>
     <Text style={s.body}>Aprenda as regras do modo Base. Estas cartas são de treino e não alteram a sua partida.</Text>
     <MotionEntry eventKey={step}>
       <View style={s.panel}>
@@ -48,7 +49,7 @@ export default function Tutorial() {
         {step === 2 && <>
           <Text style={s.body}>O jogador a seguir a quem dá as cartas escolhe o trunfo com as suas três primeiras cartas. Imagine que é a sua vez.</Text>
           <View testID="tutorial-hand" style={[s.row, { justifyContent: 'center' }]}>{exampleHand.slice(0, trump ? 5 : 3).map((c, i) => <MotionEntry key={c.id} eventKey={c.id} delay={i * 60} kind="deal"><View testID={`example-${c.id}`}><PlayingCard card={c} compact /></View></MotionEntry>)}</View>
-          <View style={s.row}>{SUITS.map(suit => <Button key={suit} title={`${suitSymbols[suit]} ${suitNames[suit]}`} secondary={suit !== trump} onPress={() => setTrump(suit)} />)}</View>
+          <View style={s.row}>{SUITS.map(suit => <Button key={suit} title={`${suitSymbols[suit]} ${suitNames[suit]}`} secondary={suit !== trump} selected={suit === trump} onPress={() => setTrump(suit)} />)}</View>
           <Text accessibilityLiveRegion="polite" style={s.label}>{trump ? `${suitSymbols[trump]} ${suitNames[trump]} é trunfo. Recebeu mais duas cartas!` : 'Escolha um naipe para receber as duas cartas que faltam.'}</Text>
           <Text style={s.body}>Quem escolhe o trunfo tem de participar e abre a primeira vaza. Um trunfo bate qualquer carta de outro naipe.</Text>
         </>}
@@ -79,10 +80,10 @@ export default function Tutorial() {
 }
 const styles = StyleSheet.create({
   progress: { flexDirection: 'row', gap: 6 },
-  segment: { flex: 1, height: 5, borderRadius: 3, backgroundColor: '#d5ddd1' },
-  felt: { backgroundColor: colors.green, borderRadius: 18, padding: 22, gap: 16, alignItems: 'center' },
-  lightLabel: { color: '#e6efdf', fontSize: 14, textAlign: 'center' },
-  bigScore: { color: colors.gold, fontSize: 76, lineHeight: 88, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  ruleTile: { backgroundColor: '#edf1e7', borderRadius: 12, padding: 16, gap: 6 },
-  result: { color: colors.green, fontSize: 34, fontWeight: '800' },
+  segment: { flex: 1, height: 5, borderRadius: 3, backgroundColor: color.track },
+  felt: { backgroundColor: color.green, borderRadius: 18, padding: 22, gap: 16, alignItems: 'center' },
+  lightLabel: { color: color.onFeltSoft, fontSize: 14, textAlign: 'center' },
+  bigScore: { color: color.gold, fontSize: 76, lineHeight: 88, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  ruleTile: { backgroundColor: color.tile, borderRadius: 12, padding: 16, gap: 6 },
+  result: { color: color.green, fontSize: 34, fontWeight: '800' },
 });

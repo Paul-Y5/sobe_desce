@@ -1,5 +1,13 @@
 # MVP verification evidence
 
+## UI system, accessibility and copy pass — 2026-10-28
+
+Scope: [design tokens, shared components, `index.tsx` split, display font and Portuguese copy](ui-system.md). No game rules, server code or testIDs changed.
+
+Safety net first: the 7 browser tests passed on the unchanged tree. After the work, `PLAYWRIGHT_CHROMIUM_PATH=/usr/bin/chromium npm run test:browser` passed all **7 tests** (1.4 minutes), `npm test` passed **38 tests** (8 new, covering the pure copy helpers in `client/src/gameText.ts`), and `npm run typecheck`, `git diff --check`, `npm run build:web` and the Android/iOS Hermes export passed. Screenshots were inspected locally and not committed; entry, rules and account were also captured at 320, 375, 768 and 1280px with no horizontal overflow.
+
+One regression was caught by the browser run and fixed: expo-router rejects an array `style` on the child of `<Link asChild>`, which blanked the whole app until the style was flattened. A second layout bug (stacked hero overlapping the entry form on phones) was found by screenshot and fixed. Screen-reader and physical-device testing remain unavailable.
+
 ## Table readability and motion — 2026-10-08
 
 The user requested research-led improvements to cards, animations and important information on the table. [Research and decisions](table-ux.md) record npm/GitHub/documentation comparisons, sources and skipped channels. No dependencies or game rules changed.

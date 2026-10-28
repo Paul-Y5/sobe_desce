@@ -10,10 +10,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@expo-google-fonts/dm-serif-display": "0.4.2",
     "@expo/log-box": "57.0.4",
     "@expo/metro-runtime": "57.0.16",
     "expo": "57.0.27",
     "expo-constants": "57.0.21",
+    "expo-font": "57.0.4",
     "expo-linking": "57.0.12",
     "expo-router": "57.0.25",
     "expo-secure-store": "57.0.4",

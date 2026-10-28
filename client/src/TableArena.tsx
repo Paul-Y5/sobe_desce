@@ -1,11 +1,13 @@
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { PublicPlayer, Snapshot } from '../../shared/index';
+import { countLabel } from './gameText';
 import { modeNames } from './MatchModes';
 import { MotionEntry, useMotionSettings } from './motion';
 import { ScoreChartControl } from './ScoreChart';
+import { breakpoint, color, fontSize, layout, radius, space } from './tokens';
 import { TurnNotice } from './TurnNotice';
-import { colors, PlayingCard, suitNames, suitSymbols } from './ui';
+import { PlayingCard, suitNames, suitSymbols } from './ui';
 
 /** Outside the scrolling play area: the deadline, trump and scores stay reachable. */
 export function TableHud({ state }: { state: Snapshot }) {
@@ -21,20 +23,26 @@ export function TableHud({ state }: { state: Snapshot }) {
 function Seat({ player, active, you, dealer, compact }: { player: PublicPlayer; active: boolean; you: boolean; dealer: boolean; compact: boolean }) {
   return <View testID={`seat-${player.seat}`} style={[styles.seat, compact && styles.compactSeat, active && styles.activeSeat]}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      {!compact && <View style={[styles.avatar, you && { backgroundColor: colors.gold }]}><Text style={styles.initial}>{player.nickname.slice(0, 1).toLocaleUpperCase('pt-PT')}</Text></View>}
-      <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.name}>{dealer ? 'Ⓓ ' : ''}{player.nickname}{you ? ' (eu)' : ''}</Text><Text style={styles.points}>{player.score} <Text style={styles.pointsUnit}>pontos</Text></Text></View>
+      {!compact && <View accessibilityElementsHidden aria-hidden style={[styles.avatar, you && { backgroundColor: color.gold }]}><Text style={styles.initial}>{player.nickname.slice(0, 1).toLocaleUpperCase('pt-PT')}</Text></View>}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          {dealer && <View accessible accessibilityLabel="Dador" style={styles.dealer}><Text style={styles.dealerMark}>D</Text></View>}
+          <Text numberOfLines={1} style={[styles.name, { flexShrink: 1 }]}>{player.nickname}{you ? ' (eu)' : ''}</Text>
+        </View>
+        <Text style={styles.points}>{player.score} <Text style={styles.pointsUnit}>pontos</Text></Text>
+      </View>
     </View>
-    <Text numberOfLines={2} style={[styles.detail, active && { color: colors.gold }]}>{player.inactive ? 'Inativo · reservado' : !player.connected ? 'Sem ligação' : active ? '● A jogar' : player.participating === false ? 'Ficou de fora' : `${player.tricks} ${player.tricks === 1 ? 'vaza' : 'vazas'}${player.bot ? ' · Bot' : ''}`}</Text>
+    <Text numberOfLines={2} style={[styles.detail, active && { color: color.gold }]}>{player.inactive ? 'Inativo · reservado' : !player.connected ? 'Sem ligação' : active ? '● A jogar' : player.participating === false ? 'Ficou de fora' : `${countLabel(player.tricks, 'vaza', 'vazas')}${player.bot ? ' · Bot' : ''}`}</Text>
     {!you && player.cardCount > 0 && <View style={styles.backs} accessible accessibilityLabel={`${player.cardCount} cartas na mão`}>
-      {Array.from({ length: player.cardCount }, (_, index) => <View key={index} style={styles.back}><Text style={{ color: '#bfd2c1', fontSize: 8 }}>◆</Text></View>)}
+      {Array.from({ length: player.cardCount }, (_, index) => <View key={index} style={styles.back}><Text style={{ color: color.onFeltMuted, fontSize: 8 }}>◆</Text></View>)}
     </View>}
   </View>;
 }
 
 export function TableArena({ state }: { state: Snapshot }) {
   const { width } = useWindowDimensions();
-  const compact = width < 600;
-  const narrow = width < 360;
+  const compact = width < breakpoint.table;
+  const narrow = width < breakpoint.compact;
   const last = state.completedTricks.at(-1);
   const showingLast = state.trick.length === 0 && !!last;
   const plays = state.trick.length ? state.trick : last?.plays ?? [];
@@ -67,7 +75,7 @@ export function TableArena({ state }: { state: Snapshot }) {
 
 export function TableTools({ state }: { state: Snapshot }) {
   const motion = useMotionSettings();
-  return <View style={styles.tools}><Text style={{ color: colors.muted, fontSize: 12 }}>SALA {state.roomCode}</Text>
+  return <View style={styles.tools}><Text style={styles.roomLabel}>SALA {state.roomCode}</Text>
     <Link href="/account" asChild><Pressable accessibilityRole="link" style={styles.tool}><Text style={styles.toolLabel}>Conta</Text></Pressable></Link>
     <Link href="/rules" asChild><Pressable accessibilityRole="link" style={styles.tool}><Text style={styles.toolLabel}>Como jogar ↗</Text></Pressable></Link>
     <Pressable accessibilityRole="button" accessibilityLabel={motion.systemReduced ? 'Animações reduzidas pelo dispositivo' : motion.disabled ? 'Ativar animações' : 'Desativar animações'} disabled={motion.systemReduced} accessibilityState={{ disabled: motion.systemReduced }} onPress={() => motion.setDisabled(!motion.disabled)} style={styles.tool}><Text style={styles.toolLabel}>{motion.reduced ? 'Animações: não' : 'Animações: sim'}</Text></Pressable>
@@ -75,44 +83,47 @@ export function TableTools({ state }: { state: Snapshot }) {
 }
 
 const styles = StyleSheet.create({
-  hud: { backgroundColor: '#103c2e', borderBottomWidth: 2, borderBottomColor: '#bfa971' },
-  hudContent: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 10 },
+  hud: { backgroundColor: color.hud, borderBottomWidth: 2, borderBottomColor: color.hudRule },
+  hudContent: { width: '100%', maxWidth: layout.page, alignSelf: 'center', paddingHorizontal: space.lg, paddingVertical: 10 },
   hudRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  eyebrow: { color: '#c3d8cd', fontSize: 10, fontWeight: '700', letterSpacing: 1 },
-  trump: { color: '#fff8e6', fontSize: 18, fontWeight: '800' },
-  trumpRule: { color: colors.gold, fontSize: 11, fontWeight: '700' },
-  table: { height: 370, position: 'relative', backgroundColor: '#185c45', borderWidth: 2, borderColor: '#9c9269', borderRadius: 28, overflow: 'hidden' },
-  feltLine: { position: 'absolute', left: 14, right: 14, top: 14, bottom: 14, borderWidth: 1, borderColor: '#52806a', borderRadius: 100 },
+  eyebrow: { color: color.onFeltMuted, fontSize: fontSize.xs, fontWeight: '700', letterSpacing: 1 },
+  trump: { color: color.onFelt, fontSize: fontSize.lg, fontWeight: '800' },
+  trumpRule: { color: color.gold, fontSize: fontSize.xs, fontWeight: '700' },
+  table: { height: 370, position: 'relative', backgroundColor: color.felt, borderWidth: 2, borderColor: color.feltEdge, borderRadius: 28, overflow: 'hidden' },
+  feltLine: { position: 'absolute', left: 14, right: 14, top: 14, bottom: 14, borderWidth: 1, borderColor: color.feltLine, borderRadius: radius.pill },
   seatPosition: { position: 'absolute', zIndex: 2 },
   north: { top: 8, left: '50%', width: 170, marginLeft: -85 },
   south: { bottom: 30, left: '50%', width: 170, marginLeft: -85 },
   west: { left: 6, top: 133, width: 78 },
   east: { right: 6, top: 133, width: 78 },
-  seat: { backgroundColor: '#123f30', borderWidth: 1, borderColor: '#64977b', padding: 7, borderRadius: 12, gap: 3 },
+  seat: { backgroundColor: color.seat, borderWidth: 1, borderColor: color.seatBorder, padding: 7, borderRadius: radius.md + 2, gap: 3 },
   compactSeat: { paddingHorizontal: 5 },
-  activeSeat: { borderColor: colors.gold, borderWidth: 2, backgroundColor: '#294d35' },
-  avatar: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#d0dfc9' },
-  initial: { color: colors.dark, fontSize: 13, fontWeight: '800' },
-  name: { color: '#fffaf0', fontSize: 12, fontWeight: '700' },
-  points: { color: colors.gold, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  pointsUnit: { color: '#d2e0d4', fontSize: 10, fontWeight: '500' },
-  detail: { color: '#d2e0d4', fontSize: 10, lineHeight: 13 },
-  backs: { flexDirection: 'row', paddingLeft: 3, height: 14 },
-  back: { width: 14, height: 17, borderRadius: 3, borderWidth: 1, borderColor: '#a2b89e', backgroundColor: '#386554', marginLeft: -3, alignItems: 'center', justifyContent: 'center' },
+  activeSeat: { borderColor: color.gold, borderWidth: 2, backgroundColor: color.seatActive },
+  avatar: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: color.onFeltMuted },
+  initial: { color: color.dark, fontSize: 13, fontWeight: '800' },
+  dealer: { width: 16, height: 16, borderRadius: 8, backgroundColor: color.onFeltMuted, alignItems: 'center', justifyContent: 'center' },
+  dealerMark: { color: color.dark, fontSize: 10, fontWeight: '800', lineHeight: 12 },
+  name: { color: color.onFelt, fontSize: fontSize.xs, fontWeight: '700' },
+  points: { color: color.gold, fontSize: fontSize.lg, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  pointsUnit: { color: color.onFeltMuted, fontSize: fontSize.xs, fontWeight: '500' },
+  detail: { color: color.onFeltMuted, fontSize: fontSize.xs, lineHeight: 15 },
+  backs: { flexDirection: 'row', paddingLeft: 3, height: 17 },
+  back: { width: 14, height: 17, borderRadius: 3, borderWidth: 1, borderColor: color.cardBackEdge, backgroundColor: color.cardBack, marginLeft: -3, alignItems: 'center', justifyContent: 'center' },
   centre: { position: 'absolute', top: 95, left: 84, right: 84, alignItems: 'center', justifyContent: 'center', height: 180 },
   played: { position: 'absolute', width: 48, alignItems: 'center', gap: 3 },
   playedFrame: { borderRadius: 9, borderWidth: 2, borderColor: 'transparent' },
-  winningCard: { borderColor: colors.gold },
-  cardCaption: { color: '#edf5e7', fontSize: 9, maxWidth: 60 },
+  winningCard: { borderColor: color.gold },
+  cardCaption: { color: color.onFeltSoft, fontSize: fontSize.xs, maxWidth: 64 },
   emptyTrick: { alignItems: 'center', gap: 5 },
-  tableSymbol: { color: '#92b6a0', fontSize: 58 },
-  tableHint: { color: '#d7e5d8', fontSize: 12, textAlign: 'center' },
+  tableSymbol: { color: color.tableSymbol, fontSize: 58 },
+  tableHint: { color: color.onFeltMuted, fontSize: fontSize.xs, textAlign: 'center' },
   trickStatus: { position: 'absolute', bottom: 6, left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  trickCount: { color: '#d4e3d3', fontSize: 10, fontWeight: '700', letterSpacing: 1 },
-  turnLabel: { color: '#fff2c6', fontSize: 12, fontWeight: '700', flexShrink: 1 },
+  trickCount: { color: color.onFeltMuted, fontSize: fontSize.xs, fontWeight: '700', letterSpacing: 1 },
+  turnLabel: { color: color.onFeltTurn, fontSize: fontSize.xs, fontWeight: '700', flexShrink: 1 },
   trickWinner: { position: 'absolute', top: 87, left: 8, width: 76 },
-  winnerText: { color: colors.gold, fontSize: 10, lineHeight: 13, fontWeight: '700' },
+  winnerText: { color: color.gold, fontSize: fontSize.xs, lineHeight: 15, fontWeight: '700' },
   tools: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between', gap: 4 },
-  tool: { minHeight: 44, paddingHorizontal: 10, justifyContent: 'center' },
-  toolLabel: { color: colors.green, fontSize: 12, fontWeight: '700' },
+  roomLabel: { color: color.muted, fontSize: fontSize.xs },
+  tool: { minHeight: layout.minTarget, minWidth: layout.minTarget, paddingHorizontal: 10, justifyContent: 'center' },
+  toolLabel: { color: color.green, fontSize: fontSize.xs + 1, fontWeight: '700' },
 });

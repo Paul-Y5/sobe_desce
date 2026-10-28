@@ -30,3 +30,5 @@ The fixed header is outside the scrolling content and contains trump (symbol and
 Cards use mirrored rank/suit corners, a central suit, selection lift and legal-play indicators. Dealing takes 420 ms with 60 ms staggering; played cards enter from their seat direction over 300 ms. Phase/result entrances remain brief. These durations are product choices informed by the references, not prescribed standards. There is no repeating animation, artificial action delay, client-side winner calculation or change to the five-minute warning plus one-minute inactivity policy.
 
 Secondary controls, rules, chat and restart remain below the main action area. The motion override is session-only; device reduced-motion preference takes precedence. Long player names truncate visually in seat panels and remain available in the score view. Screen-reader and physical-device validation are still separate follow-up work.
+
+Later changes to tokens, shared components and copy are recorded in [ui-system.md](ui-system.md).
